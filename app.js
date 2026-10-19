@@ -563,6 +563,8 @@
     const y = +date.slice(0, 4), m = +date.slice(5, 7) - 1;
     if (y !== ui.year || m !== ui.month) { ui.year = y; ui.month = m; freshDraft(); }
     render(); ui.saving = false;
+    if (f.pasted) { ui.pasted = null; const tb = document.getElementById('upi-test'); if (tb) tb.value = ''; const to = document.getElementById('upi-test-out'); if (to) to.innerHTML = ''; }
+    if (f.pasted && !f.id) { toast(`${fmtINR(amount)} added to Expenses · ${FULL[m]} ${y}`); if (!isSave) runAlerts(touched); return; }
     toast(f.id ? 'Changes saved' : `${fmtINR(amount)} saved${y !== d0.getFullYear() || m !== d0.getMonth() ? ' to ' + FULL[m] + ' ' + y : ''}`);
     if (!isSave) runAlerts(touched);
   }
@@ -751,10 +753,10 @@
     return S.upi.skipped.length ? `<details><summary class="muted">Skipped notifications (${S.upi.skipped.length}) · never counted as expenses</summary><ul class="hist">${S.upi.skipped.slice(0, 20).map(x => `<li><time>${fmtStamp(x.t)}</time><span><strong>${{ failed: 'Failed payment', credit: 'Money received', refund: 'Refund / cashback', request: 'Request or reminder', duplicate: 'Same payment, already saved' }[x.kind]}</strong>${x.amount != null ? ' · ' + fmtINR(x.amount) : ''} · ${esc(L.UPI_SOURCES[x.src].name)}<br><span class="muted">${esc(x.text)}</span></span></li>`).join('')}</ul></details>` : '';
   }
   function testBlock() {
-    return `<div class="demobox"><span class="label">Check a message</span>
-      <p>Paste the text of a real payment notification or bank SMS from your phone to see how the app reads it. Nothing is saved.</p>
+    return `<div class="demobox"><span class="label">Paste payment message</span>
+      <p>Copy a GPay, PhonePe, Paytm or bank SMS message and paste it here. The app reads the amount and who you paid, then you review and add it to Expenses.</p>
       <label class="field" style="margin-top:6px"><span>Message text</span><textarea id="upi-test" class="paste" style="min-height:80px" placeholder="e.g. copy a GPay, PhonePe or bank SMS message here"></textarea></label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" data-act="upiTest">Check how it is read</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" data-act="upiTest">Read message</button></div>
       <div id="upi-test-out"></div></div>`;
   }
 
@@ -1059,14 +1061,20 @@
     pasteAgain() { ui.pasted = null; pasteSheet(''); },
     upiTest() {
       const txt = (document.getElementById('upi-test').value || '').trim(), out = document.getElementById('upi-test-out');
-      if (!txt) { out.innerHTML = '<div class="err">Paste a notification or SMS text first.</div>'; return; }
+      if (!txt) { out.innerHTML = '<div class="err">Paste the payment message first.</div>'; return; }
       const p = L.parseUpi('', txt);
-      const verdict = { debit: ['Outgoing payment', 'Would go to the review screen'], unknown: ['Unclear', 'Would go to review with a warning to check it'], failed: ['Failed payment', 'Skipped, never counted'], credit: ['Money received', 'Skipped, never counted'], refund: ['Refund / cashback', 'Skipped, never counted'], request: ['Request or reminder', 'Skipped, never counted'], ignore: ['Not a payment', 'Ignored (no amount, OTP or an offer)'] }[p.kind];
-      out.innerHTML = `<div class="testout"><div><span class="label">Read as</span><strong>${verdict[0]}</strong> <span class="muted">· ${verdict[1]}</span></div>
-        <div class="frow"><div><span class="label">Amount</span>${p.amount != null ? `<span class="num">${fmtINR(p.amount)}</span>` : `<span class="muted">${p.issues.includes('amount-ambiguous') ? 'More than one amount, you would choose' : 'Not found, you would type it'}</span>`}</div>
-        <div><span class="label">Paid to</span>${p.payee ? esc(p.payee) : '<span class="muted">Not found</span>'}</div></div>
-        <div><span class="label">UPI ref</span>${p.ref ? '<span class="num">' + esc(p.ref) + '</span>' : '<span class="muted">Not found</span>'}</div>
-        <p class="muted" style="margin:0;font-size:.8rem">Nothing was saved. To add it, use <strong>Paste payment message</strong> on the Expenses screen. If this is read wrongly, send the text to your developer to adjust the rules.</p></div>`;
+      ui.pasted = { text: txt, p };
+      const dupe = p.ref && S.expenses.find(e => e.upiRef === p.ref);
+      const isOut = p.kind === 'debit' || p.kind === 'unknown';
+      out.innerHTML = `<div class="testout">
+        <div><span class="label">Found</span><strong class="${isOut ? '' : 'neg'}">${PASTE_VERDICT[p.kind]}</strong></div>
+        <div class="frow"><div><span class="label">Amount</span>${p.amount != null ? `<span class="num" style="font-size:1.2rem">${fmtINR(p.amount)}</span>` : `<span class="muted">${p.issues.includes('amount-ambiguous') ? 'More than one amount. You will type the right one.' : 'Not found. You will type it.'}</span>`}</div>
+          <div><span class="label">Paid to</span>${p.payee ? esc(p.payee) : '<span class="muted">Not found</span>'}</div></div>
+        ${p.ref ? `<div><span class="label">UPI ref</span><span class="num">${esc(p.ref)}</span></div>` : ''}
+        ${dupe ? `<div class="flag">Already saved: ${esc(dupe.name)} · ${fmtINR(dupe.amount)} on ${fmtDate(dupe.date)}.</div>` : ''}
+        ${!isOut ? `<div class="flag">${p.kind === 'ignore' ? 'No payment found in this message.' : 'This is not money you spent, so it is not added as an expense.'}</div>` : ''}
+        ${isOut && !dupe ? `<div><button class="btn primary" data-act="pasteAdd">Review and add to expenses</button></div>` : ''}
+      </div>`;
     },
     upiCheckNow() { pullUpi().then(() => toast('Checked for new payments')); },
     upiClearHistory() { S.upi.seen = {}; S.upi.skipped = []; S.upi.payeeCat = {}; addLog('UPI detection history cleared'); persist(); render(); toast('Detection history cleared'); },
