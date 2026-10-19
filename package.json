@@ -1,0 +1,19 @@
+{
+  "name": "family-income-ledger",
+  "version": "1.5.0",
+  "private": true,
+  "description": "Family Income Ledger — web app (PWA) and Android app (Capacitor) from the same code.",
+  "scripts": {
+    "build:web": "node scripts/build-web.js",
+    "sync": "npm run build:web && npx cap sync android",
+    "open:android": "npx cap open android",
+    "test:upi": "node scripts/test-upi-parser.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.8",
+    "@capacitor/core": "7.6.8"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.8"
+  }
+}

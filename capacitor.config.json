@@ -1,0 +1,6 @@
+{
+  "appId": "in.dnabusiness.familyledger",
+  "appName": "Family Ledger",
+  "webDir": "www",
+  "android": { "allowMixedContent": false, "captureInput": true }
+}

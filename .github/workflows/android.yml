@@ -1,0 +1,47 @@
+# Builds the Family Ledger Android app (APK) on GitHub's servers.
+# No Android Studio needed: push this project to GitHub, then download the APK
+# from the "Actions" tab → latest run → "Artifacts" → family-ledger-apk.
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Copy app screens into the Android project
+        run: npm run sync
+
+      - name: Run text-rule tests
+        run: npm run test:upi
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: family-ledger-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

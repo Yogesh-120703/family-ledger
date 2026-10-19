@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Family Ledger</string>
+    <string name="title_activity_main">Family Ledger</string>
+    <string name="package_name">in.dnabusiness.familyledger</string>
+    <string name="custom_url_scheme">in.dnabusiness.familyledger</string>
+    <string name="upi_listener_label">Family Ledger · UPI payment detection</string>
+</resources>
