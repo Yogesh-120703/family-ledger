@@ -166,7 +166,7 @@
       <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div>
       <p class="muted" style="margin:0;font-size:.84rem">Spending ${cmp.total.diff > 0 ? 'is up' : cmp.total.diff < 0 ? 'is down' : 'is the same'}${cmp.total.diff ? ' by ' + fmtINR(Math.abs(cmp.total.diff)) : ''} overall.</p></section>` : ''}
     ${st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 3)}</section>` : ''}
-    <section class="panel"><div class="phead"><div><h2>Recent transactions</h2><p>${FULL[m]} ${y}</p></div></div>
+    <section class="panel"><div class="phead"><div><h2>Recent transactions</h2><p>${FULL[m]} ${y}</p></div><button class="btn small" data-act="pasteMsg">Paste payment message</button></div>
       ${recent.length ? recent.map(([e, k]) => txRow(e, k)).join('') : `<div class="empty"><b>Nothing recorded in ${FULL[m]}</b>Tap + Expense when you spend money.</div>`}
     </section>`;
   }
@@ -182,6 +182,7 @@
     const list = all.filter(e => ui.xf === 'all' || e.type === ui.xf).sort(byNewest);
     const chip = (k, l, v) => `<button class="chip ${ui.xf === k ? 'on' : ''}" data-act="xf" data-f="${k}">${l} · <span class="num">${short(v)}</span></button>`;
     return header('Expenses', 'month') + upiBanner() + `<section class="panel">
+      <button class="pastebtn" data-act="pasteMsg"><span aria-hidden="true">⧉</span><span><strong>Paste payment message</strong><br><span class="muted">Copy a GPay, PhonePe or bank SMS and add it in one step</span></span></button>
       <div class="chips">${chip('all', 'All', L.sum(all))}${chip('need', 'Necessary', L.sum(all, 'need'))}${chip('life', 'Lifestyle', L.sum(all, 'life'))}</div>
       ${list.length ? grouped(list, 'exp') : `<div class="empty"><b>No ${ui.xf === 'all' ? '' : KINDS[ui.xf].toLowerCase() + ' '}expenses in ${FULL[m]} ${y}</b>Tap + Expense to record spending. Tap any expense later to edit or delete it.</div>`}
     </section>`;
@@ -469,19 +470,19 @@
   }
   function txForm(kind, rec, opts) {
     opts = opts || {};
-    const isNew = !rec || !!opts.recur || !!opts.upi, isSave = kind === 'save';
+    const isNew = !rec || !!opts.recur || !!opts.upi || !!opts.pasted, isSave = kind === 'save';
     const nowD = new Date(), inMonth = nowD.getFullYear() === ui.year && nowD.getMonth() === ui.month;
     const lastPayer = person(prefs.lastPayer) && !person(prefs.lastPayer).archived ? prefs.lastPayer : (active()[0] || {}).id;
     const type = isSave ? 'save' : rec ? rec.type : (ui.xf === 'life' ? 'life' : 'need');
     const catKind = isSave ? 'save' : type;
     const defaultCat = (prefs['lastCat_' + catKind] && L.cat(S, prefs['lastCat_' + catKind]) && !L.cat(S, prefs['lastCat_' + catKind]).archived) ? prefs['lastCat_' + catKind] : (activeCats(catKind)[0] || {}).id;
     rec = rec || { name: '', amount: '', date: inMonth ? today() : mk(ui.year, ui.month) + '-01', catId: defaultCat, subId: null, note: '', paidBy: lastPayer, by: lastPayer };
-    ui.form = { kind, id: opts.recur || opts.upi ? null : rec.id || null, type, armedDup: false, recur: opts.recur || null, upi: opts.upi || null };
-    const repeatSel = isNew && !opts.recur && !opts.upi;
+    ui.form = { kind, id: opts.recur || opts.upi || opts.pasted ? null : rec.id || null, type, armedDup: false, recur: opts.recur || null, upi: opts.upi || null, pasted: opts.pasted || null };
+    const repeatSel = isNew && !opts.recur && !opts.upi && !opts.pasted;
     const upiItem = opts.upi ? S.upi.queue.find(x => x.id === opts.upi) : null;
-    const modeVal = upiItem ? 'UPI' : rec.mode != null ? rec.mode : (isNew ? prefs.lastMode || '' : '');
+    const modeVal = upiItem || opts.pasted ? 'UPI' : rec.mode != null ? rec.mode : (isNew ? prefs.lastMode || '' : '');
     const who = isSave ? rec.by : rec.paidBy, orphan = rec.id && !person(who);
-    sheet(`<h3>${upiItem ? 'Save UPI payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
+    sheet(`<h3>${upiItem ? 'Save UPI payment' : opts.pasted ? 'Add pasted payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
       <label class="field"><span>Amount (₹)</span><input id="f-amt" class="big" inputmode="decimal" enterkeyhint="done" value="${rec.amount}" placeholder="0" autocomplete="off" autofocus></label>
       ${isSave ? '' : `<div class="seg" role="group" aria-label="Expense type"><button class="need ${type === 'need' ? 'on' : ''}" data-act="ftype" data-t="need">Necessary</button><button class="life ${type === 'life' ? 'on' : ''}" data-act="ftype" data-t="life">Lifestyle</button></div>`}
       <div class="frow"><label class="field"><span>Category</span><select id="f-cat">${catOptions(catKind, rec.catId)}</select></label>
@@ -493,6 +494,7 @@
         <label class="field"><span>${isSave ? 'Saved by' : 'Paid by'}</span><select id="f-who">${orphan ? `<option value="" selected>${esc(L.personName(S, who, isSave ? rec.byName : rec.paidName))}</option>` : ''}${S.people.filter(p => !p.archived || p.id === who).map(p => `<option value="${p.id}" ${p.id === who ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label></div>
       ${isSave ? '' : `<label class="field"><span>Paid with</span><select id="f-mode"><option value="">Not set</option>${L.PAY_MODES.map(x => `<option ${x === modeVal ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`}
       <label class="field"><span>Notes (optional)</span><input id="f-note" value="${esc(rec.note || '')}" maxlength="140" autocomplete="off"></label>
+      ${opts.pasted ? `<p>Read from your pasted message${opts.pasted.ref ? ' · UPI ref ' + esc(opts.pasted.ref) : ''}.${rec.amount === '' ? '<br><strong style="color:var(--ink)">The amount was not clear in the message. Please type it.</strong>' : ''} Check the details, pick a category, then Save.</p>` : ''}
       ${upiItem ? `<p>From ${esc(L.UPI_SOURCES[upiItem.src].name)} at ${fmtStamp(upiItem.postedAt)}: “${esc(upiItem.title)} ${esc(upiItem.text)}”${upiItem.amount == null ? '<br><strong style="color:var(--ink)">The amount was not clear in the notification. Please type it.</strong>' : ''}</p>` : ''}
       ${opts.recur ? `<p>From your repeating payment. Change the amount or date if needed.</p>` : ''}
       ${repeatSel ? `<div class="frow"><label class="field"><span>Repeat</span><select id="f-rep"><option value="0">Doesn't repeat</option>${Object.entries(L.FREQ).map(([k, l]) => `<option value="${k}" ${+opts.repeat === +k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -521,6 +523,7 @@
     const rec = { name, amount, date, catId, subId: subId || null, note: L.norm(q('#f-note').value) };
     if (!isSave) { const md = q('#f-mode'); rec.mode = md && md.value ? md.value : null; if (!rec.mode) delete rec.mode; }
     const upiItem = f.upi ? S.upi.queue.find(x => x.id === f.upi) : null;
+    if (f.pasted && f.pasted.ref && S.expenses.some(e => e.upiRef === f.pasted.ref)) { err.textContent = 'This payment (UPI ref ' + f.pasted.ref + ') is already in your expenses.'; return; }
     if (upiItem && upiItem.ref && S.expenses.some(e => e.upiRef === upiItem.ref)) { err.textContent = 'This UPI payment (ref ' + upiItem.ref + ') is already saved. Reject it instead.'; return; }
     const list = isSave ? S.savings : S.expenses;
     const twin = L.findTwin(list, rec, f.id);
@@ -543,6 +546,10 @@
       addLog(`${isSave ? 'Savings' : 'Expense'} added · ${rec.name} ${fmtINR(amount)} · ${L.catName(S, catId)} (${fmtDate(date)})`);
       if (f.recur) { const r = S.recurring.find(x => x.id === f.recur.id); if (r) r.done[f.recur.key] = full.id; }
       if (upiItem) finishUpi(upiItem, full);
+      if (f.pasted) {
+        full.mode = full.mode || 'UPI'; full.source = 'pasted-message'; if (f.pasted.ref) full.upiRef = f.pasted.ref;
+        if (f.pasted.payee) S.upi.payeeCat[payeeKey(f.pasted.payee)] = { catId: full.catId, type: full.type };
+      }
       const repEl = q('#f-rep'), freq = repEl ? +repEl.value : 0;
       if (freq) {
         const varies = q('#f-varies') && q('#f-varies').value === '1';
@@ -765,6 +772,42 @@
     expense.notifAt = it.postedAt;
     if (it.payee) S.upi.payeeCat[payeeKey(it.payee)] = { catId: expense.catId, type: expense.type };
   }
+  /* ---------- paste a payment message (works everywhere, no permissions needed) ---------- */
+  const PASTE_VERDICT = { debit: 'Payment made', unknown: 'Looks like a payment, please check', failed: 'Failed payment', credit: 'Money received', refund: 'Refund or cashback', request: 'Payment request or reminder', ignore: 'Not a payment' };
+  function pasteSheet(prefill) {
+    sheet(`<h3>Paste payment message</h3>
+      <p>Long-press the GPay, PhonePe, Paytm or bank SMS message on your phone, tap <strong>Copy</strong>, then paste it here. You can paste the app message and the bank SMS together.</p>
+      <label class="field"><span>Message</span><textarea id="paste-msg" class="paste" style="min-height:120px" placeholder="e.g. Paid ₹250 to Ravi Stores. UPI Ref No 412345678901" autofocus>${esc(prefill || '')}</textarea></label>
+      <div id="paste-out" role="status"></div>
+      <div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="pasteRead">Read message</button></div>`);
+  }
+  function pasteRead() {
+    const txt = (q('#paste-msg').value || '').trim(), out = q('#paste-out');
+    if (!txt) { out.innerHTML = '<div class="err">Paste the message first.</div>'; return; }
+    const p = L.parseUpi('', txt);
+    ui.pasted = { text: txt, p };
+    const dupe = p.ref && S.expenses.find(e => e.upiRef === p.ref);
+    const isOut = p.kind === 'debit' || p.kind === 'unknown';
+    out.innerHTML = `<div class="testout">
+      <div><span class="label">Found</span><strong class="${isOut ? '' : 'neg'}">${PASTE_VERDICT[p.kind]}</strong></div>
+      <div class="frow"><div><span class="label">Amount</span>${p.amount != null ? `<span class="num" style="font-size:1.2rem">${fmtINR(p.amount)}</span>` : `<span class="muted">${p.issues.includes('amount-ambiguous') ? 'More than one amount. You will type the right one.' : 'Not found. You will type it.'}</span>`}</div>
+        <div><span class="label">Paid to</span>${p.payee ? esc(p.payee) : '<span class="muted">Not found</span>'}</div></div>
+      ${p.ref ? `<div><span class="label">UPI ref</span><span class="num">${esc(p.ref)}</span></div>` : ''}
+      ${dupe ? `<div class="flag">Already saved: ${esc(dupe.name)} · ${fmtINR(dupe.amount)} on ${fmtDate(dupe.date)}.</div>` : ''}
+      ${!isOut ? `<div class="flag">${p.kind === 'ignore' ? 'No payment found in this message.' : 'This is not money you spent, so it should not be added as an expense.'}</div>` : ''}
+    </div>`;
+    const foot = layer.querySelector('.mfoot');
+    foot.innerHTML = `<button class="btn" data-act="close">Cancel</button>${isOut && !dupe ? '<button class="btn" data-act="pasteAgain">Paste another</button><button class="btn primary" data-act="pasteAdd">Add as expense</button>' : '<button class="btn primary" data-act="pasteAgain">Paste another</button>'}`;
+  }
+  function pasteAdd() {
+    const x = ui.pasted; if (!x) return;
+    if (!active().length) return toast('Add a family member first');
+    const p = x.p, c = learnedCat({ payee: p.payee }), type = c ? c.kind : 'need';
+    const rec = { name: p.payee || '', amount: p.amount == null ? '' : p.amount, date: today(), type,
+      catId: c ? c.id : (activeCats(type)[0] || {}).id, subId: null, note: p.ref ? 'UPI ref ' + p.ref : '', paidBy: upiOwner(), mode: 'UPI' };
+    txForm('exp', rec, { pasted: { ref: p.ref, payee: p.payee } });
+  }
+
   function upiFormRec(it) {
     const c = learnedCat(it), type = c ? c.kind : 'need';
     return { name: it.payee || '', amount: it.amount == null ? '' : it.amount, date: it.date, catId: c ? c.id : (activeCats(type)[0] || {}).id, subId: null, type,
@@ -1010,6 +1053,10 @@
       S.upi.queue.forEach(x => { x.dup = findUpiDup(x); });
       persist(); render(); toast(`Split into ${parts.length + 1} separate payments`);
     },
+    pasteMsg() { pasteSheet(''); },
+    pasteRead() { pasteRead(); },
+    pasteAdd() { pasteAdd(); },
+    pasteAgain() { ui.pasted = null; pasteSheet(''); },
     upiTest() {
       const txt = (document.getElementById('upi-test').value || '').trim(), out = document.getElementById('upi-test-out');
       if (!txt) { out.innerHTML = '<div class="err">Paste a notification or SMS text first.</div>'; return; }
@@ -1019,7 +1066,7 @@
         <div class="frow"><div><span class="label">Amount</span>${p.amount != null ? `<span class="num">${fmtINR(p.amount)}</span>` : `<span class="muted">${p.issues.includes('amount-ambiguous') ? 'More than one amount, you would choose' : 'Not found, you would type it'}</span>`}</div>
         <div><span class="label">Paid to</span>${p.payee ? esc(p.payee) : '<span class="muted">Not found</span>'}</div></div>
         <div><span class="label">UPI ref</span>${p.ref ? '<span class="num">' + esc(p.ref) + '</span>' : '<span class="muted">Not found</span>'}</div>
-        <p class="muted" style="margin:0;font-size:.8rem">Nothing was saved. If this is read wrongly, send the text to your developer to adjust the rules.</p></div>`;
+        <p class="muted" style="margin:0;font-size:.8rem">Nothing was saved. To add it, use <strong>Paste payment message</strong> on the Expenses screen. If this is read wrongly, send the text to your developer to adjust the rules.</p></div>`;
     },
     upiCheckNow() { pullUpi().then(() => toast('Checked for new payments')); },
     upiClearHistory() { S.upi.seen = {}; S.upi.skipped = []; S.upi.payeeCat = {}; addLog('UPI detection history cleared'); persist(); render(); toast('Detection history cleared'); },

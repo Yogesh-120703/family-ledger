@@ -15,6 +15,7 @@ check('bank SMS style debit, balance ignored', 'AX-BANK', 'Rs.500.00 debited fro
 check('sent money', '', 'You sent ₹75 to Tea Stall', { kind: 'debit', amount: 75, payee: 'Tea Stall' });
 console.log('Not complete — user must fill in');
 check('success without amount', 'Payment successful', 'Your payment to Anand was successful', { kind: 'debit', amount: null, issues: ['amount-missing'] });
+check('payment to X successful, no title', '', 'Your payment to Kumar Medicals was successful', { kind: 'debit', amount: null, payee: 'Kumar Medicals' });
 check('two amounts', '', 'Paid ₹500 to Metro and ₹20 convenience fee', { kind: 'debit', amount: null, issues: ['amount-ambiguous'] });
 console.log('Excluded from expenses');
 check('failed', 'Payment failed', '₹300 to Anand could not be completed', { kind: 'failed' });

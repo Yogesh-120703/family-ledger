@@ -322,7 +322,7 @@
     refund: /\b(refund(ed)?|cashback|reversal)\b/i,
     request: /\b(requested|requesting|is requesting|collect request|payment request|request(ed)? (money|payment)|bill is due|is due|due on|reminder|pay now|pay your)\b/i,
     credit: /\b(received|credited|has sent you|sent you|added to (your )?(wallet|account|balance|bank))\b/i,
-    debit: /(\byou paid\b|\bpaid to\b|\bpaid (₹|rs\b|rs\.|inr\b)|\bpaid successfully\b|\bpayment (of [^.]{0,40})?(was )?successful\b|(₹|rs\.?|inr)\s*[0-9][0-9,.]*\s*(has been |was |is )?(paid|sent|debited|spent)\b|\bsent (₹|rs\b|rs\.|inr\b)|\byou sent\b|\bmoney sent\b|\bdebited\b|\btransferred to\b|\bspent\b)/i
+    debit: /(\byou paid\b|\bpaid to\b|\bpaid (₹|rs\b|rs\.|inr\b)|\bpaid successfully\b|\bpayment ((of|to) [^.]{0,40}?)?(was |is |has been )?successful\b|(₹|rs\.?|inr)\s*[0-9][0-9,.]*\s*(has been |was |is )?(paid|sent|debited|spent)\b|\bsent (₹|rs\b|rs\.|inr\b)|\byou sent\b|\bmoney sent\b|\bdebited\b|\btransferred to\b|\bspent\b)/i
   };
   function parseUpi(title, text) {
     const t = ((title || '') + ' . ' + (text || '')).replace(/\s+/g, ' ').trim();

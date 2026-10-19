@@ -77,6 +77,11 @@ button:disabled{opacity:.45;cursor:default}
 .card .s{font-size:.76rem;color:var(--muted)}
 .card .v.nil{color:var(--muted);font-family:var(--body);font-size:.95rem;font-weight:600}
 
+/* paste payment message */
+.pastebtn{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1.5px dashed var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:12px 14px;min-height:56px;font-size:.92rem}
+.pastebtn>span:first-child{font-size:1.4rem;color:var(--accent)}
+.pastebtn .muted{font-size:.8rem}
+
 /* message checker */
 .demobox{border:1px dashed var(--line);border-radius:var(--r);padding:12px;display:grid;gap:8px}
 .demobox p{margin:0;font-size:.86rem;color:var(--muted)}
