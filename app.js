@@ -462,10 +462,10 @@
 
   /* ---------- transaction form (expenses + savings) ---------- */
   function catOptions(kind, sel) {
-    return S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel)).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
+    return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel)).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
-    const c = L.cat(S, catId); if (!c) return '<option value="">None</option>';
+    const c = L.cat(S, catId); if (!c) return '<option value="">Choose a category first</option>';
     return '<option value="">None</option>' + c.subs.filter(s => !s.archived || s.id === sel).map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('') + '<option value="__new">＋ New subcategory…</option>';
   }
   function txForm(kind, rec, opts) {
@@ -494,7 +494,7 @@
         <label class="field"><span>${isSave ? 'Saved by' : 'Paid by'}</span><select id="f-who">${orphan ? `<option value="" selected>${esc(L.personName(S, who, isSave ? rec.byName : rec.paidName))}</option>` : ''}${S.people.filter(p => !p.archived || p.id === who).map(p => `<option value="${p.id}" ${p.id === who ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label></div>
       ${isSave ? '' : `<label class="field"><span>Paid with</span><select id="f-mode"><option value="">Not set</option>${L.PAY_MODES.map(x => `<option ${x === modeVal ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`}
       <label class="field"><span>Notes (optional)</span><input id="f-note" value="${esc(rec.note || '')}" maxlength="140" autocomplete="off"></label>
-      ${opts.pasted ? `<p>Read from your pasted message${opts.pasted.ref ? ' · UPI ref ' + esc(opts.pasted.ref) : ''}.${rec.amount === '' ? '<br><strong style="color:var(--ink)">The amount was not clear in the message. Please type it.</strong>' : ''} Check the details, pick a category, then Save.</p>` : ''}
+      ${opts.pasted ? `<p>Read from your pasted message${opts.pasted.ref ? ' · UPI ref ' + esc(opts.pasted.ref) : ''}.${rec.amount === '' ? '<br><strong style="color:var(--ink)">The amount was not clear in the message. Please type it.</strong>' : ''} Check the details, <strong style="color:var(--ink)">choose a category</strong>, then Save.</p>` : ''}
       ${upiItem ? `<p>From ${esc(L.UPI_SOURCES[upiItem.src].name)} at ${fmtStamp(upiItem.postedAt)}: “${esc(upiItem.title)} ${esc(upiItem.text)}”${upiItem.amount == null ? '<br><strong style="color:var(--ink)">The amount was not clear in the notification. Please type it.</strong>' : ''}</p>` : ''}
       ${opts.recur ? `<p>From your repeating payment. Change the amount or date if needed.</p>` : ''}
       ${repeatSel ? `<div class="frow"><label class="field"><span>Repeat</span><select id="f-rep"><option value="0">Doesn't repeat</option>${Object.entries(L.FREQ).map(([k, l]) => `<option value="${k}" ${+opts.repeat === +k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -517,7 +517,7 @@
     if (ui.saving) return;
     const f = ui.form, isSave = f.kind === 'save', err = q('#f-err');
     const amount = L.parseMoney(q('#f-amt').value), date = q('#f-date').value, catId = q('#f-cat').value, subId = q('#f-sub').value, who = q('#f-who').value;
-    const e = amount == null ? 'Enter an amount above ₹0, like 1500 or 249.50.' : !L.validDate(date) ? 'Pick a valid date.' : (!catId || catId === '__new' || !L.cat(S, catId)) ? 'Choose a category.' : subId === '__new' ? 'Add the new subcategory or pick one from the list.' : (!who && !f.id) ? 'Choose who ' + (isSave ? 'saved' : 'paid') + '.' : '';
+    const e = amount == null ? 'Enter an amount above ₹0, like 1500 or 249.50.' : !L.validDate(date) ? 'Pick a valid date.' : (!catId || catId === '__new' || !L.cat(S, catId)) ? 'Choose a category for this payment.' : subId === '__new' ? 'Add the new subcategory or pick one from the list.' : (!who && !f.id) ? 'Choose who ' + (isSave ? 'saved' : 'paid') + '.' : '';
     if (e) { err.textContent = e; return; }
     const name = L.norm(q('#f-name').value) || L.subName(S, catId, subId) || L.catName(S, catId);
     const rec = { name, amount, date, catId, subId: subId || null, note: L.norm(q('#f-note').value) };
@@ -558,7 +558,7 @@
         addLog(`Repeating payment set · ${rec.name} · ${L.FREQ[freq].toLowerCase()} on day ${+date.slice(8)}`);
       }
     }
-    prefs.lastPayer = who || prefs.lastPayer; prefs['lastCat_' + formCatKind()] = catId; if (!isSave && !upiItem && rec.mode) prefs.lastMode = rec.mode; savePrefs();
+    prefs.lastPayer = who || prefs.lastPayer; if (!upiItem && !f.pasted) prefs['lastCat_' + formCatKind()] = catId; if (!isSave && !upiItem && rec.mode) prefs.lastMode = rec.mode; savePrefs();
     persist(); closeSheet();
     const y = +date.slice(0, 4), m = +date.slice(5, 7) - 1;
     if (y !== ui.year || m !== ui.month) { ui.year = y; ui.month = m; freshDraft(); }
@@ -804,15 +804,16 @@
   function pasteAdd() {
     const x = ui.pasted; if (!x) return;
     if (!active().length) return toast('Add a family member first');
-    const p = x.p, c = learnedCat({ payee: p.payee }), type = c ? c.kind : 'need';
+    const p = x.p, type = 'need';
+    // UPI payments never get a category automatically; the person chooses it every time
     const rec = { name: p.payee || '', amount: p.amount == null ? '' : p.amount, date: today(), type,
-      catId: c ? c.id : (activeCats(type)[0] || {}).id, subId: null, note: p.ref ? 'UPI ref ' + p.ref : '', paidBy: upiOwner(), mode: 'UPI' };
+      catId: '', subId: null, note: p.ref ? 'UPI ref ' + p.ref : '', paidBy: upiOwner(), mode: 'UPI' };
     txForm('exp', rec, { pasted: { ref: p.ref, payee: p.payee } });
   }
 
   function upiFormRec(it) {
-    const c = learnedCat(it), type = c ? c.kind : 'need';
-    return { name: it.payee || '', amount: it.amount == null ? '' : it.amount, date: it.date, catId: c ? c.id : (activeCats(type)[0] || {}).id, subId: null, type,
+    const type = 'need'; // no automatic category for UPI; the person chooses it
+    return { name: it.payee || '', amount: it.amount == null ? '' : it.amount, date: it.date, catId: '', subId: null, type,
       note: it.ref ? 'UPI ref ' + it.ref : '', paidBy: upiOwner(), mode: 'UPI' };
   }
   function vReview() {
@@ -820,7 +821,7 @@
     const qd = S.upi.queue.slice().sort((a, b) => b.postedAt - a.postedAt);
     return header('UPI review') + `
     <p class="muted" style="margin:0;font-size:.9rem">${IS_NATIVE ? 'These were read from payment notifications on this phone.' : 'This web version cannot read notifications, so nothing will appear here.'} Nothing here counts as an expense until you save it.</p>
-    ${qd.length ? qd.map(it => { const c = learnedCat(it), quick = it.kind === 'debit' && it.amount != null && !it.dup && c;
+    ${qd.length ? qd.map(it => { const quick = false; // UPI payments are always reviewed and categorised by hand
       return `<section class="panel upicard">
         <div class="phead"><span><span class="tag need" style="color:var(--accent)">${esc(L.UPI_SOURCES[it.src].name)}</span> <span class="muted" style="font-size:.84rem">${fmtStamp(it.postedAt)}</span></span>
           <span class="num" style="font-size:1.3rem">${it.amount == null ? '<span class="muted" style="font-family:var(--body);font-size:.9rem">Amount not clear</span>' : fmtINR(it.amount)}</span></div>
@@ -896,7 +897,7 @@
     ftype(el) {
       const t = el.dataset.t; if (t === ui.form.type) return; ui.form.type = t;
       layer.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-      const sel = prefs['lastCat_' + t] && L.cat(S, prefs['lastCat_' + t]) && !L.cat(S, prefs['lastCat_' + t]).archived ? prefs['lastCat_' + t] : (activeCats(t)[0] || {}).id;
+      const sel = ui.form.upi || ui.form.pasted ? '' : prefs['lastCat_' + t] && L.cat(S, prefs['lastCat_' + t]) && !L.cat(S, prefs['lastCat_' + t]).archived ? prefs['lastCat_' + t] : (activeCats(t)[0] || {}).id;
       q('#f-cat').innerHTML = catOptions(t, sel); q('#f-sub').innerHTML = subOptions(sel, null); q('#f-newcat').hidden = true; q('#f-newsub').hidden = true;
     },
     fAddCat() {
