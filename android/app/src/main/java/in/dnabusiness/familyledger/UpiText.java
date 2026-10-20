@@ -35,6 +35,7 @@ final class UpiText {
     private static final Pattern REF2 = Pattern.compile("\\b([0-9]{12})\\b");
     private static final Pattern UPI_WORD = Pattern.compile("\\bupi\\b", CI);
     private static final Pattern PAYEE = Pattern.compile("\\b(?:paid|sent|transferred|payment|debited)\\b[^.]{0,60}?\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\\s+(?:on|via|using|from|for|upi|ref|successfully|is|was|has|with|thru|through)\\b|[.,!;]|$)", CI);
+    private static final Pattern VPA = Pattern.compile("\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9._-]+@[A-Za-z0-9.-]*[A-Za-z0-9])", CI);
     private static final Pattern PAYEE_BAD = Pattern.compile("^(a/c|ac|account|your)\\b", CI);
 
     private UpiText() {}
@@ -60,8 +61,12 @@ final class UpiText {
         if (ref.find()) r.ref = ref.group(1);
         else if (UPI_WORD.matcher(t).find()) { Matcher r2 = REF2.matcher(t); if (r2.find()) r.ref = r2.group(1); }
 
-        Matcher pm = PAYEE.matcher(t);
-        if (pm.find()) { String p = pm.group(1).trim(); if (!PAYEE_BAD.matcher(p).find()) r.payee = p; }
+        Matcher vm = VPA.matcher(t);
+        if (vm.find()) r.payee = vm.group(1);
+        else {
+            Matcher pm = PAYEE.matcher(t);
+            if (pm.find()) { String p = pm.group(1).trim(); if (!PAYEE_BAD.matcher(p).find()) r.payee = p; }
+        }
 
         boolean isDebit = DEBIT_RX.matcher(t).find();
         if (PROMO.matcher(t).find() && !isDebit) { r.kind = IGNORE; return r; }

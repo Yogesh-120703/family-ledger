@@ -18,29 +18,25 @@ A web app cannot read phone notifications. Android only allows that through a na
 | Rules | `core.js` → `parseUpi()` | Decides: outgoing payment / failed / money received / refund / request or reminder / unclear / ignore. Finds the amount (skipping "Avl Bal" figures), payee and the 12-digit UPI reference |
 | Screens | `app.js` | Settings → UPI payment detection, the **UPI review** screen, and "Paid with" on expenses |
 
-### How a payment flows (real time, automatic)
-1. You pay with Google Pay, PhonePe, Paytm, BHIM or CRED, or your bank sends a debit SMS.
-2. The listener keeps the notification straight away (only if it has a ₹ amount; OTPs never).
-3. About 8 seconds later (time to collect the bank SMS for the same payment) Family Ledger shows its own alert, even when the app is closed: **"₹100 paid to Ravi Kumar · Family Ledger is adding it to your expenses. Tap to choose a category."**
-4. The app adds it the moment it reads the payment (when you tap the alert or open the app; instantly if the app is already open):
-   - **Clear outgoing payment** (money sent, single amount found, no similar payment already recorded that day): **added to Expenses automatically** as **Not sorted**. It counts in Total expenses, balance, limits and reports straight away. The app never picks a category.
-   - **Unclear** (no amount, more than one amount, or the same amount already recorded that day): goes to the **UPI review** screen to confirm.
-   - **Failed, money received, refund/cashback, request or reminder:** never added; listed under Settings → Skipped notifications.
-5. **Choosing the category:** tap the alert, or Home → **Needs a category** → tap the payment → Necessary or Lifestyle → category → Save. If a payment was not yours, tap Delete.
-6. Settings → **Add payments automatically** (on by default) can be turned off. Then every payment waits on the review screen, as in the earlier version.
+### How a payment flows (fully automatic)
+1. **One-time setup:** Expenses → **UPI** tab → **Turn on** → switch on Family Ledger in Android's notification access screen → come back. (On Android 13+ allow notifications when asked.)
+2. You pay with Google Pay, PhonePe, Paytm, BHIM or CRED, or your bank sends a debit SMS.
+3. About 8 seconds later Family Ledger shows: **"₹100 paid to Ravi Kumar · Added to Family Ledger automatically. Tap to choose a category."**
+4. The payment is added to **Expenses → UPI** by itself. No paste, no review, no Save button. It counts in totals, balance, limits and reports straight away, marked **Not sorted** until you choose a category (the app never picks one).
+5. Choose the category any time: tap the alert, or Expenses → UPI → **Needs a category**.
+6. Never added: money received, failed payments, refunds, requests, offers, and messages with no clear amount (those are only noted in the Activity log).
+7. Turn it off from the UPI tab (**Turn off automatic UPI**). Settings no longer has a UPI section.
+
+Cash expenses: Expenses → **Cash** tab → **+ Expense**, typed by hand as before.
 
 ### Duplicate protection
 - The same UPI reference number is never added twice, and a rejected notification never comes back.
 - Android re-posting the same notification is ignored on the phone.
+- **Two different named payees** (e.g. two ₹100 payments to different shops a minute apart) are always two payments. A UPI ID such as `ravi.kumar@okaxis` is not treated as a different name.
 - **One payment, several notifications:** notifications with the same UPI ref, or the same amount within 3 minutes, are combined into **one review card** ("3 notifications for this payment"), so you review and save once. Different UPI refs are never combined. If they really were separate payments, tap **These were separate payments** to split them.
 - A notification arriving after its payment was already saved is listed as "Same payment, already saved" under Skipped notifications.
 - The same amount from another source 3–10 minutes apart is flagged "may be the same payment" and gets no one-tap save.
 - The same amount already recorded that day (for example you typed it manually) is flagged too.
-
-### Check a message
-⚙ Settings → UPI payment detection → **Check a message**: paste the text of a real payment notification or bank SMS to see how it is read (payment or not, amount, payee, UPI ref). Nothing is saved. This also works in the web version.
-
-The earlier demo mode has been removed. Any demo entries left from it are deleted automatically the first time the new version opens; real entries are not touched.
 
 ### Nothing is made up
 - A missing or unclear amount stays empty, and the form will not save until you type it.

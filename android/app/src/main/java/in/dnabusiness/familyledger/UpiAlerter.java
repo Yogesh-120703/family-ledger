@@ -76,14 +76,13 @@ final class UpiAlerter {
         ensureChannel(ctx);
 
         String amount = g.amount == null ? null : formatInr(g.amount);
-        String title = !g.sure ? (amount == null ? "Possible UPI payment" : "Possible UPI payment of " + amount)
-            : amount == null ? "UPI payment detected"
+        String title = amount == null ? "UPI payment detected"
             : g.payee == null ? amount + " paid" : amount + " paid to " + g.payee;
         // Automatic entry: a clear payment is added by the app as "Not sorted" (the app does this the moment
         // it reads the queue). Anything unclear still waits for review.
-        boolean added = UpiStore.isAuto(ctx) && g.sure && amount != null;
-        String body = added ? "Family Ledger is adding it to your expenses. Tap to choose a category."
-            : (amount == null ? "Amount not clear. " : "") + "Tap to review and add to Family Ledger.";
+        boolean added = UpiStore.isAuto(ctx) && amount != null; // the app adds every payment with a clear amount
+        String body = added ? "Added to Family Ledger automatically. Tap to choose a category."
+            : "Amount not clear in the message, so it was not added.";
         if (g.count > 1) body += " (" + g.count + " notifications for this payment)";
 
         Intent open = new Intent(ctx, MainActivity.class)

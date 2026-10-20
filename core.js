@@ -339,7 +339,8 @@
     else out.issues.push(amounts.length ? 'amount-ambiguous' : 'amount-missing');
     const refM = t.match(/\b(?:upi\s*)?(?:ref(?:erence)?\.?\s*(?:no\.?|number|id)?|utr|rrn|txn\.?\s*id|transaction\s*id)\s*[:#-]?\s*([0-9]{12})\b/i) || (/\bupi\b/i.test(t) && t.match(/\b([0-9]{12})\b/));
     if (refM) out.ref = refM[1];
-    const payM = t.match(/\b(?:paid|sent|transferred|payment|debited)\b[^.]{0,60}?\bto\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\s+(?:on|via|using|from|for|upi|ref|successfully|is|was|has|with|thru|through)\b|[.,!;]|$)/i);
+    const vpaM = t.match(/\bto\s+(?:vpa\s+)?([A-Za-z0-9._-]+@[A-Za-z0-9.-]*[A-Za-z0-9])/i);
+    const payM = vpaM ? [null, vpaM[1]] : t.match(/\b(?:paid|sent|transferred|payment|debited)\b[^.]{0,60}?\bto\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\s+(?:on|via|using|from|for|upi|ref|successfully|is|was|has|with|thru|through)\b|[.,!;]|$)/i);
     if (payM && !/^(a\/c|ac|account|your)\b/i.test(payM[1].trim())) out.payee = payM[1].trim();
     const isDebit = RX.debit.test(t);
     if (RX.promo.test(t) && !isDebit) { out.kind = 'ignore'; return out; } // ads and offers from payment apps

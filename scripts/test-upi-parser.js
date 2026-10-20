@@ -12,6 +12,7 @@ console.log('Outgoing payments (become review items)');
 check('paid with payee', 'Payment sent', 'Paid ₹250 to Ravi Stores', { kind: 'debit', amount: 250, payee: 'Ravi Stores' });
 check('paid with ref', '', '₹1,499.00 paid to Swiggy successfully. UPI Ref No 412345678901', { kind: 'debit', amount: 1499, ref: '412345678901', payee: 'Swiggy' });
 check('bank SMS style debit, balance ignored', 'AX-BANK', 'Rs.500.00 debited from A/c XX1234 on 13-10-26 to VPA kumar@oksbi. UPI Ref 401234567890. Avl Bal Rs 12,345.67', { kind: 'debit', amount: 500, ref: '401234567890', payee: 'kumar@oksbi' });
+check('UPI ID with a dot', 'AX-BK', 'Rs.100.00 debited from A/c XX4521 to VPA ravi.kumar@okaxis. Avl Bal Rs 15,320.50', { kind: 'debit', amount: 100, payee: 'ravi.kumar@okaxis' });
 check('sent money', '', 'You sent ₹75 to Tea Stall', { kind: 'debit', amount: 75, payee: 'Tea Stall' });
 console.log('Not complete — user must fill in');
 check('success without amount', 'Payment successful', 'Your payment to Anand was successful', { kind: 'debit', amount: null, issues: ['amount-missing'] });
