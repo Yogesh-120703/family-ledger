@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 final class UpiStore {
     private static final String PREFS = "upi_detect";
     private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_AUTO = "auto";
     private static final String KEY_PACKAGES = "packages";
     private static final String KEY_QUEUE = "queue";
     private static final String KEY_RECENT = "recent";
@@ -36,10 +37,13 @@ final class UpiStore {
 
     static boolean isEnabled(Context c) { return prefs(c).getBoolean(KEY_ENABLED, false); }
 
+    /** True when the app adds clear payments to expenses by itself (the user can turn this off). */
+    static boolean isAuto(Context c) { return prefs(c).getBoolean(KEY_AUTO, true); }
+
     static Set<String> getPackages(Context c) { return new HashSet<>(prefs(c).getStringSet(KEY_PACKAGES, new HashSet<>())); }
 
-    static synchronized void configure(Context c, boolean enabled, Set<String> packages) {
-        SharedPreferences.Editor e = prefs(c).edit().putBoolean(KEY_ENABLED, enabled).putStringSet(KEY_PACKAGES, packages);
+    static synchronized void configure(Context c, boolean enabled, boolean auto, Set<String> packages) {
+        SharedPreferences.Editor e = prefs(c).edit().putBoolean(KEY_ENABLED, enabled).putBoolean(KEY_AUTO, auto).putStringSet(KEY_PACKAGES, packages);
         if (!enabled) e.remove(KEY_QUEUE).remove(KEY_RECENT); // turning detection off also clears anything not yet read
         e.apply();
     }

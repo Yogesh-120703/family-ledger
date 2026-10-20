@@ -2,7 +2,7 @@
 :root{
   --bg:#0E141B; --surface:#161F29; --raised:#1C2733; --sunk:#111A23; --ink:#E7ECF1; --muted:#95A3B2; --line:#283543;
   --accent:#F2A93B; --accent-ink:#1A1206; --accent-soft:#33260F;
-  --need:#5C9EEA; --life:#F09A4E; --save:#3FC1A5; --good:#4CC28A; --bad:#EF6F67; --warn:#E8C04A;
+  --need:#5C9EEA; --life:#F09A4E; --save:#3FC1A5; --uns:#B9A3FF; --good:#4CC28A; --bad:#EF6F67; --warn:#E8C04A;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Hanken Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
@@ -77,6 +77,9 @@ button:disabled{opacity:.45;cursor:default}
 .card .s{font-size:.76rem;color:var(--muted)}
 .card .v.nil{color:var(--muted);font-family:var(--body);font-size:.95rem;font-weight:600}
 
+/* needs a category */
+.needscat{border-color:var(--uns)}
+
 /* paste payment message */
 .pastebtn{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1.5px dashed var(--accent);background:var(--accent-soft);border-radius:var(--r);padding:12px 14px;min-height:56px;font-size:.92rem}
 .pastebtn>span:first-child{font-size:1.4rem;color:var(--accent)}
@@ -139,7 +142,7 @@ button:disabled{opacity:.45;cursor:default}
 .tx .t span{font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tx .a{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .mark{width:6px;height:34px;border-radius:3px}
-.mark.need{background:var(--need)} .mark.life{background:var(--life)} .mark.save{background:var(--save)}
+.mark.uns{background:var(--uns)} .mark.need{background:var(--need)} .mark.life{background:var(--life)} .mark.save{background:var(--save)}
 .empty{color:var(--muted);font-size:.92rem;text-align:center;padding:26px 12px;display:grid;gap:10px;justify-items:center}
 .empty b{color:var(--ink);font-family:var(--display);font-size:1.05rem}
 
@@ -205,7 +208,7 @@ table.rep{border-collapse:collapse;width:100%;font-size:.84rem}
 .toplist .r1>span:first-child{display:flex;gap:8px;align-items:center;min-width:0}
 .toplist strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tag{font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;border-radius:4px;padding:1px 5px;font-weight:700;flex:none;border:1px solid}
-.tag.need{color:var(--need)} .tag.life{color:var(--life)} .tag.save{color:var(--save)}
+.tag.uns{color:var(--uns)} .tag.need{color:var(--need)} .tag.life{color:var(--life)} .tag.save{color:var(--save)}
 .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--sunk)}
 .seg button{border:0;background:transparent;min-height:42px;padding:6px;font-weight:700;color:var(--muted);font-size:.9rem}
 .seg button.on{background:var(--ink);color:var(--bg)}

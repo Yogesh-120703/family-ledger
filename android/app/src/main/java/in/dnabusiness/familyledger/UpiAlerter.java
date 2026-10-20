@@ -79,9 +79,12 @@ final class UpiAlerter {
         String title = !g.sure ? (amount == null ? "Possible UPI payment" : "Possible UPI payment of " + amount)
             : amount == null ? "UPI payment detected"
             : g.payee == null ? amount + " paid" : amount + " paid to " + g.payee;
-        String body = (amount == null ? "Amount not clear. " : "")
-            + "Tap to add to Family Ledger expenses."
-            + (g.count > 1 ? " (" + g.count + " notifications for this payment)" : "");
+        // Automatic entry: a clear payment is added by the app as "Not sorted" (the app does this the moment
+        // it reads the queue). Anything unclear still waits for review.
+        boolean added = UpiStore.isAuto(ctx) && g.sure && amount != null;
+        String body = added ? "Family Ledger is adding it to your expenses. Tap to choose a category."
+            : (amount == null ? "Amount not clear. " : "") + "Tap to review and add to Family Ledger.";
+        if (g.count > 1) body += " (" + g.count + " notifications for this payment)";
 
         Intent open = new Intent(ctx, MainActivity.class)
             .putExtra(EXTRA_OPEN, "review")
@@ -99,7 +102,7 @@ final class UpiAlerter {
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pi)
-            .addAction(0, "Review", pi);
+            .addAction(0, added ? "Choose category" : "Review", pi);
         try {
             nm.notify(g.notifId, b.build());
         } catch (SecurityException ignored) {

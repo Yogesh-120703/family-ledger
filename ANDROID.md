@@ -18,17 +18,16 @@ A web app cannot read phone notifications. Android only allows that through a na
 | Rules | `core.js` → `parseUpi()` | Decides: outgoing payment / failed / money received / refund / request or reminder / unclear / ignore. Finds the amount (skipping "Avl Bal" figures), payee and the 12-digit UPI reference |
 | Screens | `app.js` | Settings → UPI payment detection, the **UPI review** screen, and "Paid with" on expenses |
 
-### How a payment flows (real time)
+### How a payment flows (real time, automatic)
 1. You pay with Google Pay, PhonePe, Paytm, BHIM or CRED, or your bank sends a debit SMS.
-2. If that app shows a notification, the listener keeps it straight away (only if it has a ₹ amount).
-3. **About 8 seconds later** (time to collect the bank SMS for the same payment), Family Ledger shows its own alert, even when the app is closed:
-   **"₹450 paid to Annapoorna Hotel. Tap to add to Family Ledger expenses."** Received, failed, refund, request and offer messages never cause an alert. If the app is open on screen, no alert is shown; the review banner appears in the app instead.
-4. Tapping the alert opens the app on the **UPI review** screen. There each notification is read and sorted:
-   - **Outgoing payment** goes to the **UPI review** screen.
-   - **Failed, money received, refund/cashback, payment request or bill reminder** is never added; it's listed under Settings → "Skipped notifications".
-   - **Promotions, OTPs and texts without an amount** are dropped.
-5. On the review screen you **Reject**, **Review & save** (opens the expense form prefilled), or, for a payee you've categorised before, **Save as <category>** in one tap.
-6. Only saved items become expenses. They then count in Home, Expenses, Analytics, limits and Reports like any other expense, marked "Paid with UPI", with the UPI ref stored.
+2. The listener keeps the notification straight away (only if it has a ₹ amount; OTPs never).
+3. About 8 seconds later (time to collect the bank SMS for the same payment) Family Ledger shows its own alert, even when the app is closed: **"₹100 paid to Ravi Kumar · Family Ledger is adding it to your expenses. Tap to choose a category."**
+4. The app adds it the moment it reads the payment (when you tap the alert or open the app; instantly if the app is already open):
+   - **Clear outgoing payment** (money sent, single amount found, no similar payment already recorded that day): **added to Expenses automatically** as **Not sorted**. It counts in Total expenses, balance, limits and reports straight away. The app never picks a category.
+   - **Unclear** (no amount, more than one amount, or the same amount already recorded that day): goes to the **UPI review** screen to confirm.
+   - **Failed, money received, refund/cashback, request or reminder:** never added; listed under Settings → Skipped notifications.
+5. **Choosing the category:** tap the alert, or Home → **Needs a category** → tap the payment → Necessary or Lifestyle → category → Save. If a payment was not yours, tap Delete.
+6. Settings → **Add payments automatically** (on by default) can be turned off. Then every payment waits on the review screen, as in the earlier version.
 
 ### Duplicate protection
 - The same UPI reference number is never added twice, and a rejected notification never comes back.

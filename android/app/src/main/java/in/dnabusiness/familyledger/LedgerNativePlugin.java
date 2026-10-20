@@ -174,6 +174,7 @@ public class LedgerNativePlugin extends Plugin {
     @PluginMethod
     public void configure(PluginCall call) {
         boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        boolean auto = Boolean.TRUE.equals(call.getBoolean("auto", true));
         Set<String> pkgs = new HashSet<>();
         JSArray arr = call.getArray("packages", new JSArray());
         try {
@@ -183,7 +184,7 @@ public class LedgerNativePlugin extends Plugin {
             call.reject("Package list could not be read");
             return;
         }
-        UpiStore.configure(getContext(), enabled, pkgs);
+        UpiStore.configure(getContext(), enabled, auto, pkgs);
         status(call);
     }
 

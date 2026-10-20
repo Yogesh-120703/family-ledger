@@ -5,7 +5,7 @@
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const KINDS = { need: 'Necessary', life: 'Lifestyle', save: 'Savings' };
+  const KINDS = { need: 'Necessary', life: 'Lifestyle', uns: 'Not sorted', save: 'Savings' }; // uns = auto-added UPI payment waiting for a category
   const COLORS = ['#5C9EEA','#F09A4E','#3FC1A5','#D77BB0','#9A86F0','#E3C14D','#56C2D6','#EF7E70','#93B85A','#B99A84'];
 
   const DEFAULT_CATS = {
@@ -40,7 +40,7 @@
     return out;
   }
 
-  function defaultUpi() { const sources = {}; Object.keys(UPI_SOURCES).forEach(k => { sources[k] = UPI_SOURCES[k].on; }); return { enabled: false, sources, queue: [], seen: {}, skipped: [], payeeCat: {} }; }
+  function defaultUpi() { const sources = {}; Object.keys(UPI_SOURCES).forEach(k => { sources[k] = UPI_SOURCES[k].on; }); return { enabled: false, auto: true, sources, queue: [], seen: {}, skipped: [], payeeCat: {} }; }
   function fresh() {
     return {
       v: 2,
@@ -120,7 +120,7 @@
 
   /* ---------- lookups ---------- */
   const cat = (S, id) => S.cats.find(c => c.id === id);
-  const catName = (S, id) => (cat(S, id) || {}).name || 'Uncategorised';
+  const catName = (S, id) => (cat(S, id) || {}).name || 'Needs a category';
   function subName(S, catId, subId) { const c = cat(S, catId); const s = c && c.subs.find(x => x.id === subId); return s ? s.name : ''; }
   const person = (S, id) => S.people.find(p => p.id === id);
   function personName(S, id, fallback) { const p = person(S, id); return p ? p.name : (fallback || 'Former member'); }
@@ -138,16 +138,16 @@
 
   function totals(S, y, m) {
     const ex = inMonth(S.expenses, y, m), sv = inMonth(S.savings, y, m);
-    const income = incomeMonth(S, y, m), need = sum(ex, 'need'), life = sum(ex, 'life'), save = sum(sv);
-    const total = round2(need + life);
-    return { income, hasIncome: hasIncome(S, y, m), need, life, total, save, bal: round2(income - total - save),
+    const income = incomeMonth(S, y, m), need = sum(ex, 'need'), life = sum(ex, 'life'), uns = sum(ex, 'uns'), save = sum(sv);
+    const total = round2(need + life + uns); // not-sorted payments are real spending, so they count in the total
+    return { income, hasIncome: hasIncome(S, y, m), need, life, uns, nUns: ex.filter(e => e.type === 'uns').length, total, save, bal: round2(income - total - save),
       nExp: ex.length, nSave: sv.length, empty: !hasIncome(S, y, m) && !ex.length && !sv.length };
   }
   function yearSeries(S, y) { return MONTHS.map((_, i) => totals(S, y, i)); }
   function yearTotals(S, y) {
     const s = yearSeries(S, y);
-    const t = s.reduce((a, x) => { a.income += x.income; a.need += x.need; a.life += x.life; a.save += x.save; return a; }, { income: 0, need: 0, life: 0, save: 0 });
-    t.total = round2(t.need + t.life); t.bal = round2(t.income - t.total - t.save);
+    const t = s.reduce((a, x) => { a.income += x.income; a.need += x.need; a.life += x.life; a.uns += x.uns; a.save += x.save; return a; }, { income: 0, need: 0, life: 0, uns: 0, save: 0 });
+    t.total = round2(t.need + t.life + t.uns); t.bal = round2(t.income - t.total - t.save);
     t.monthsWithIncome = s.filter(x => x.hasIncome).length;
     return t;
   }

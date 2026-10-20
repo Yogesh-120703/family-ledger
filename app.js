@@ -139,6 +139,7 @@
     ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Family Ledger on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
     ${isEmpty ? `<div class="notice"><span>New here? Load sample data to see how every screen works, or bring data from the web version.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="loadSample">Load sample data</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
     ${upiBanner()}
+    ${needsCatPanel()}
     ${S.sampleLoaded ? `<div class="notice"><span><strong>Sample data is showing.</strong> Remove it before you start entering real figures. Your own entries are kept.</span><button class="btn small" data-act="removeSample">Remove sample data</button></div>` : ''}
     <section class="balance" aria-label="Available balance">
       <span class="label">Available balance · ${FULL[m]} ${y}</span>
@@ -158,7 +159,7 @@
       ${card('Family income', t.income, t.hasIncome ? active().length + ' members' : `<button class="linkbtn" data-act="go" data-v="income">Add income</button>`, t.hasIncome, null, t.hasIncome && cmp && !cmp.partial ? delta(cmp.income, true) : '')}
       ${card('Necessary', t.need, t.nExp ? 'Essentials' : 'No expenses yet', t.nExp > 0, 'var(--need)', cmp ? delta(cmp.need, false) : '')}
       ${card('Lifestyle', t.life, 'Personal spending', t.nExp > 0, 'var(--life)', cmp ? delta(cmp.life, false) : '')}
-      ${card('Total expenses', t.total, t.nExp + ' record' + (t.nExp === 1 ? '' : 's'), t.nExp > 0, null, cmp ? delta(cmp.total, false) : '')}
+      ${card('Total expenses', t.total, t.uns ? `incl. ${fmtINR(t.uns)} not sorted` : t.nExp + ' record' + (t.nExp === 1 ? '' : 's'), t.nExp > 0, null, cmp && !t.uns ? delta(cmp.total, false) : '')}
       ${card('Savings', t.save, t.nSave + ' entr' + (t.nSave === 1 ? 'y' : 'ies'), t.nSave > 0, 'var(--save)', cmp ? delta(cmp.save, true) : '')}
       ${rb.started ? `<div class="card"><span class="label">Total balance</span><span class="v ${rb.total > 0 ? 'pos' : rb.total < 0 ? 'neg' : ''}">${fmtINR(rb.total)}</span><span class="s">Incl. earlier months</span></div>` : ''}
     </section>
@@ -183,7 +184,7 @@
     const chip = (k, l, v) => `<button class="chip ${ui.xf === k ? 'on' : ''}" data-act="xf" data-f="${k}">${l} · <span class="num">${short(v)}</span></button>`;
     return header('Expenses', 'month') + upiBanner() + `<section class="panel">
       <button class="pastebtn" data-act="pasteMsg"><span aria-hidden="true">⧉</span><span><strong>Paste payment message</strong><br><span class="muted">Copy a GPay, PhonePe or bank SMS and add it in one step</span></span></button>
-      <div class="chips">${chip('all', 'All', L.sum(all))}${chip('need', 'Necessary', L.sum(all, 'need'))}${chip('life', 'Lifestyle', L.sum(all, 'life'))}</div>
+      <div class="chips">${chip('all', 'All', L.sum(all))}${chip('need', 'Necessary', L.sum(all, 'need'))}${chip('life', 'Lifestyle', L.sum(all, 'life'))}${all.some(e => e.type === 'uns') || ui.xf === 'uns' ? chip('uns', 'Not sorted', L.sum(all, 'uns')) : ''}</div>
       ${list.length ? grouped(list, 'exp') : `<div class="empty"><b>No ${ui.xf === 'all' ? '' : KINDS[ui.xf].toLowerCase() + ' '}expenses in ${FULL[m]} ${y}</b>Tap + Expense to record spending. Tap any expense later to edit or delete it.</div>`}
     </section>`;
   }
@@ -462,6 +463,7 @@
 
   /* ---------- transaction form (expenses + savings) ---------- */
   function catOptions(kind, sel) {
+    if (kind === 'uns') return '<option value="" selected disabled>Tap Necessary or Lifestyle first</option>';
     return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel)).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
@@ -474,15 +476,16 @@
     const nowD = new Date(), inMonth = nowD.getFullYear() === ui.year && nowD.getMonth() === ui.month;
     const lastPayer = person(prefs.lastPayer) && !person(prefs.lastPayer).archived ? prefs.lastPayer : (active()[0] || {}).id;
     const type = isSave ? 'save' : rec ? rec.type : (ui.xf === 'life' ? 'life' : 'need');
-    const catKind = isSave ? 'save' : type;
+    const catKind = isSave ? 'save' : type; // 'uns' = auto-added payment still waiting for Necessary/Lifestyle and a category
     const defaultCat = (prefs['lastCat_' + catKind] && L.cat(S, prefs['lastCat_' + catKind]) && !L.cat(S, prefs['lastCat_' + catKind]).archived) ? prefs['lastCat_' + catKind] : (activeCats(catKind)[0] || {}).id;
     rec = rec || { name: '', amount: '', date: inMonth ? today() : mk(ui.year, ui.month) + '-01', catId: defaultCat, subId: null, note: '', paidBy: lastPayer, by: lastPayer };
-    ui.form = { kind, id: opts.recur || opts.upi || opts.pasted ? null : rec.id || null, type, armedDup: false, recur: opts.recur || null, upi: opts.upi || null, pasted: opts.pasted || null };
+    ui.form = { kind, id: opts.recur || opts.upi || opts.pasted ? null : rec.id || null, type, wasUns: type === 'uns', armedDup: false, recur: opts.recur || null, upi: opts.upi || null, pasted: opts.pasted || null };
     const repeatSel = isNew && !opts.recur && !opts.upi && !opts.pasted;
     const upiItem = opts.upi ? S.upi.queue.find(x => x.id === opts.upi) : null;
     const modeVal = upiItem || opts.pasted ? 'UPI' : rec.mode != null ? rec.mode : (isNew ? prefs.lastMode || '' : '');
     const who = isSave ? rec.by : rec.paidBy, orphan = rec.id && !person(who);
-    sheet(`<h3>${upiItem ? 'Save UPI payment' : opts.pasted ? 'Add pasted payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
+    sheet(`<h3>${type === 'uns' ? 'Choose a category' : upiItem ? 'Save UPI payment' : opts.pasted ? 'Add pasted payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
+      ${type === 'uns' ? `<p>Added automatically from a UPI notification${rec.srcApp && L.UPI_SOURCES[rec.srcApp] ? ' (' + esc(L.UPI_SOURCES[rec.srcApp].name) + ')' : ''}. Tap <strong style="color:var(--ink)">Necessary</strong> or <strong style="color:var(--ink)">Lifestyle</strong>, choose the category, then Save. If this was not your payment, tap Delete.</p>` : ''}
       <label class="field"><span>Amount (₹)</span><input id="f-amt" class="big" inputmode="decimal" enterkeyhint="done" value="${rec.amount}" placeholder="0" autocomplete="off" autofocus></label>
       ${isSave ? '' : `<div class="seg" role="group" aria-label="Expense type"><button class="need ${type === 'need' ? 'on' : ''}" data-act="ftype" data-t="need">Necessary</button><button class="life ${type === 'life' ? 'on' : ''}" data-act="ftype" data-t="life">Lifestyle</button></div>`}
       <div class="frow"><label class="field"><span>Category</span><select id="f-cat">${catOptions(catKind, rec.catId)}</select></label>
@@ -517,7 +520,7 @@
     if (ui.saving) return;
     const f = ui.form, isSave = f.kind === 'save', err = q('#f-err');
     const amount = L.parseMoney(q('#f-amt').value), date = q('#f-date').value, catId = q('#f-cat').value, subId = q('#f-sub').value, who = q('#f-who').value;
-    const e = amount == null ? 'Enter an amount above ₹0, like 1500 or 249.50.' : !L.validDate(date) ? 'Pick a valid date.' : (!catId || catId === '__new' || !L.cat(S, catId)) ? 'Choose a category for this payment.' : subId === '__new' ? 'Add the new subcategory or pick one from the list.' : (!who && !f.id) ? 'Choose who ' + (isSave ? 'saved' : 'paid') + '.' : '';
+    const e = amount == null ? 'Enter an amount above ₹0, like 1500 or 249.50.' : !L.validDate(date) ? 'Pick a valid date.' : (!isSave && f.type === 'uns') ? 'Tap Necessary or Lifestyle, then choose a category.' : (!catId || catId === '__new' || !L.cat(S, catId)) ? 'Choose a category for this payment.' : subId === '__new' ? 'Add the new subcategory or pick one from the list.' : (!who && !f.id) ? 'Choose who ' + (isSave ? 'saved' : 'paid') + '.' : '';
     if (e) { err.textContent = e; return; }
     const name = L.norm(q('#f-name').value) || L.subName(S, catId, subId) || L.catName(S, catId);
     const rec = { name, amount, date, catId, subId: subId || null, note: L.norm(q('#f-note').value) };
@@ -538,8 +541,9 @@
       touched.push(old.date);
       const before = old.name + ' ' + fmtINR(old.amount);
       Object.assign(old, rec); delete old.sample; if (!isSave) old.type = f.type;
+      if (f.wasUns && old.payee && L.cat(S, old.catId)) S.upi.payeeCat[payeeKey(old.payee)] = { catId: old.catId, type: old.type };
       if (who) { if (isSave) { old.by = who; delete old.byName; } else { old.paidBy = who; delete old.paidName; } }
-      addLog(`${isSave ? 'Savings' : 'Expense'} edited · ${before} → ${rec.name} ${fmtINR(amount)} (${fmtDate(date)})`);
+      addLog(f.wasUns ? `Category chosen · ${rec.name} ${fmtINR(amount)} → ${L.catName(S, catId)}` : `${isSave ? 'Savings' : 'Expense'} edited · ${before} → ${rec.name} ${fmtINR(amount)} (${fmtDate(date)})`);
     } else {
       const full = Object.assign({ id: L.uid(isSave ? 'v' : 'x'), created: Date.now() }, rec, isSave ? { by: who } : { type: f.type, paidBy: who });
       list.push(full);
@@ -565,6 +569,7 @@
     render(); ui.saving = false;
     if (f.pasted) { ui.pasted = null; const tb = document.getElementById('upi-test'); if (tb) tb.value = ''; const to = document.getElementById('upi-test-out'); if (to) to.innerHTML = ''; }
     if (f.pasted && !f.id) { toast(`${fmtINR(amount)} added to Expenses · ${FULL[m]} ${y}`); if (!isSave) runAlerts(touched); return; }
+    if (f.wasUns) { const left = S.expenses.filter(e => e.type === 'uns').length; toast(left ? `Saved. ${left} more payment${left === 1 ? '' : 's'} need a category` : 'Saved. All payments have a category'); if (!isSave) runAlerts(touched); return; }
     toast(f.id ? 'Changes saved' : `${fmtINR(amount)} saved${y !== d0.getFullYear() || m !== d0.getMonth() ? ' to ' + FULL[m] + ' ' + y : ''}`);
     if (!isSave) runAlerts(touched);
   }
@@ -668,6 +673,13 @@
   const dateOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   const payeeKey = p => L.norm(p).toLowerCase();
   ui.nat = null;
+  function needsCatPanel() {
+    const list = S.expenses.filter(e => e.type === 'uns').sort((a, b) => b.date.localeCompare(a.date) || (b.created || 0) - (a.created || 0));
+    if (!list.length) return '';
+    return `<section class="panel needscat" aria-label="Payments that need a category"><div class="phead"><div><h2>Needs a category</h2><p>${list.length} UPI payment${list.length === 1 ? '' : 's'} added automatically · ${fmtINR(L.sum(list))} · already counted in your totals</p></div></div>
+      ${list.slice(0, 5).map(e => txRow(e, 'exp')).join('')}
+      ${list.length > 5 ? `<button class="linkbtn" data-act="xfUns">See all ${list.length}</button>` : ''}</section>`;
+  }
   function upiBanner() {
     const n = S.upi.queue.length;
     return n ? `<div class="notice"><span><strong>${n} UPI payment${n === 1 ? '' : 's'} to review.</strong> Detected from notifications on this phone. Not counted until you save them.</span><button class="btn primary small" data-act="go" data-v="review">Review</button></div>` : '';
@@ -690,14 +702,18 @@
     if (!Native || !S.upi.enabled) return;
     let res; try { res = await Native.getPending(); } catch (e) { return; }
     const items = (res && res.items) || []; if (!items.length) return;
-    const added = ingest(items, false);
+    const added = ingest(items);
     try { await Native.acknowledge({ ids: items.map(x => x.id) }); } catch (e) {}
-    if (added) { render(); toast(`${added} UPI payment${added === 1 ? '' : 's'} to review`); }
+    if (autoAdded || added) {
+      render();
+      toast(autoAdded ? `${autoAdded} UPI payment${autoAdded === 1 ? '' : 's'} added. Choose ${autoAdded === 1 ? 'a category' : 'categories'} on Home.` + (added ? ` ${added} to review.` : '') : `${added} UPI payment${added === 1 ? '' : 's'} to review`);
+      const dates = S.expenses.filter(e => e.auto && Date.now() - e.created < 60000).map(e => e.date); if (dates.length) runAlerts(dates);
+    }
     else if (ui.view === 'settings' || ui.view === 'review') render();
   }
   /* Sorts notifications read on this phone into review / skipped / ignored. */
   function ingest(items) {
-    let added = 0;
+    let added = 0; autoAdded = 0;
     items.forEach(raw => {
       const src = L.sourceOfPkg(raw.pkg); if (!src || !S.upi.sources[src]) return;
       const p = L.parseUpi(raw.title, raw.text), key = L.upiKey(raw, p);
@@ -720,11 +736,17 @@
       if (twin) { mergeInto(twin, it); return; }
       const saved = S.expenses.find(e => e.notifAt && e.amount === it.amount && Math.abs(e.notifAt - it.postedAt) <= SAME_PAYMENT_MS && !(e.upiRef && it.ref && e.upiRef !== it.ref));
       if (saved) {
+        // another notification for a payment already added: fill in details it was missing, then skip it
+        if (saved.auto && saved.type === 'uns') {
+          if (!saved.payee && it.payee) { saved.payee = it.payee; if (saved.name === 'UPI payment') saved.name = it.payee; }
+          if (!saved.upiRef && it.ref && !S.expenses.some(e => e.upiRef === it.ref)) { saved.upiRef = it.ref; saved.note = 'UPI ref ' + it.ref; }
+        }
         S.upi.skipped.unshift({ t: raw.postedAt, src, kind: 'duplicate', amount: p.amount, text: ((raw.title || '') + ' — ' + (raw.text || '')).slice(0, 180) });
         if (S.upi.skipped.length > 50) S.upi.skipped.length = 50;
         S.upi.seen[key] = { d: 'duplicate', t: Date.now() }; return;
       }
       it.dup = findUpiDup(it);
+      if (S.upi.auto && it.kind === 'debit' && it.amount != null && !it.dup) { autoAdd(it); autoAdded++; return; }
       S.upi.queue.push(it); added++;
     });
     pruneSeen(); persist();
@@ -732,6 +754,19 @@
   }
 
   const SAME_PAYMENT_MS = 3 * 60 * 1000;
+  let autoAdded = 0;
+  /* Automatic entry: a clear outgoing payment becomes an expense straight away.
+     It gets no category (type 'uns' = Not sorted); the person chooses one later. */
+  function autoAdd(it) {
+    const e = { id: L.uid('x'), created: Date.now(), name: it.payee || 'UPI payment', amount: it.amount, date: it.date, type: 'uns', catId: null, subId: null,
+      paidBy: upiOwner(), note: it.ref ? 'UPI ref ' + it.ref : '', mode: 'UPI', source: 'upi-auto', srcApp: it.src, notifAt: it.postedAt, auto: true };
+    if (it.payee) e.payee = it.payee;
+    if (it.ref) e.upiRef = it.ref;
+    S.expenses.push(e);
+    S.upi.seen[it.key] = { d: 'saved', t: Date.now(), x: e.id };
+    addLog(`UPI payment added automatically · ${e.name} ${fmtINR(e.amount)} (${fmtDate(e.date)}) · needs a category`);
+    return e;
+  }
   function samePayment(a, b) {
     if (a.ref && b.ref) return a.ref === b.ref;               // different UPI refs = different payments
     if (a.amount == null || b.amount == null) return false;  // can't match without an amount
@@ -764,7 +799,7 @@
   async function refreshNative() { if (!Native) return; try { ui.nat = await Native.status(); } catch (e) { ui.nat = { available: false, error: true }; } if (ui.view === 'settings') render(); }
   async function configureNative() {
     if (!Native) return;
-    try { ui.nat = await Native.configure({ enabled: !!S.upi.enabled, packages: L.upiPackages(S.upi.sources) }); } catch (e) { toast('Could not update detection settings on this phone.'); }
+    try { ui.nat = await Native.configure({ enabled: !!S.upi.enabled, auto: !!S.upi.auto, packages: L.upiPackages(S.upi.sources) }); } catch (e) { toast('Could not update detection settings on this phone.'); }
     if (ui.view === 'settings') render();
   }
   function finishUpi(it, expense) {
@@ -844,12 +879,13 @@
     if (!Native) return `<section class="panel" id="upi"><div class="phead"><div><h2>UPI payment detection</h2><p>Real detection works only in the Family Ledger Android app. This web version cannot read phone notifications.</p></div></div>${testBlock()}</section>`;
     const n = ui.nat || {}, granted = !!n.permission;
     return `<section class="panel" id="upi">
-      <div class="phead"><div><h2>UPI payment detection</h2><p>Reads payment notifications from the apps you tick, alerts you within seconds, and asks you to confirm each payment before it is saved. Cash stays manual.</p></div></div>
+      <div class="phead"><div><h2>UPI payment detection</h2><p>Reads payment notifications from the apps you tick and adds your UPI payments within seconds. You choose each category. Cash stays manual.</p></div></div>
       <div class="rowline"><span>Notification access: <strong class="${granted ? 'pos' : 'neg'}">${ui.nat ? (granted ? 'Allowed' : 'Not allowed') : 'Checking…'}</strong></span><button class="btn small" data-act="openAccess">${granted ? 'Manage' : 'Allow access'}</button></div>
       ${!granted && n.sdk >= 33 ? `<p class="muted" style="margin:0;font-size:.84rem">If Android shows the switch greyed out or says "Restricted setting": open App info → ⋮ (top right) → <strong>Allow restricted settings</strong>, then try again.</p><div><button class="btn small" data-act="openAppInfo">Open App info</button></div>` : ''}
       ${granted ? `<div class="rowline"><span>Instant payment alerts: <strong class="${n.alerts ? 'pos' : 'neg'}">${n.alerts ? 'On' : 'Off'}</strong><br><span class="muted" style="font-size:.8rem">Shows "₹450 paid to… tap to add" a few seconds after you pay, even when this app is closed.</span></span><button class="btn small" data-act="${n.alerts ? 'openAlertSettings' : 'allowAlerts'}">${n.alerts ? 'Manage' : 'Turn on'}</button></div>` : ''}
       <label class="switch"><span><strong>Detect UPI payments</strong><br><span class="muted" style="font-size:.86rem">${S.upi.enabled && !granted ? 'On, but waiting for notification access.' : 'Off by default. You can turn it off any time.'}</span></span><input type="checkbox" data-act="toggleUpi" ${S.upi.enabled ? 'checked' : ''} aria-label="Detect UPI payments"></label>
-      ${S.upi.enabled ? `<div><span class="label">Apps to read</span>${Object.entries(L.UPI_SOURCES).map(([k, v]) => `<label class="switch" style="min-height:44px"><span>${esc(v.name)}${k === 'sms' ? '<br><span class="muted" style="font-size:.8rem">Bank debit SMS. Only messages with a ₹ amount are kept, and OTPs are always ignored.</span>' : ''}</span><input type="checkbox" data-act="toggleSrc" data-k="${k}" ${S.upi.sources[k] ? 'checked' : ''}></label>`).join('')}</div>
+      ${S.upi.enabled ? `<label class="switch"><span><strong>Add payments automatically</strong><br><span class="muted" style="font-size:.86rem">${S.upi.auto ? 'Clear payments are added to Expenses straight away as “Not sorted”. You choose the category later. Unclear ones still go to review.' : 'Off: every payment waits on the review screen until you save it.'}</span></span><input type="checkbox" data-act="toggleAuto" ${S.upi.auto ? 'checked' : ''} aria-label="Add payments automatically"></label>
+        <div><span class="label">Apps to read</span>${Object.entries(L.UPI_SOURCES).map(([k, v]) => `<label class="switch" style="min-height:44px"><span>${esc(v.name)}${k === 'sms' ? '<br><span class="muted" style="font-size:.8rem">Bank debit SMS. Only messages with a ₹ amount are kept, and OTPs are always ignored.</span>' : ''}</span><input type="checkbox" data-act="toggleSrc" data-k="${k}" ${S.upi.sources[k] ? 'checked' : ''}></label>`).join('')}</div>
         <label class="field"><span>Payments on this phone are made by</span><select id="upi-owner">${active().map(p => `<option value="${p.id}" ${p.id === upiOwner() ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="go" data-v="review">Review payments (${S.upi.queue.length})</button><button class="btn ghost" data-act="upiCheckNow">Check now</button></div>` : ''}
       ${skippedList()}
@@ -887,6 +923,7 @@
     stepM(el) { guardDirty(() => { let m = ui.month + +el.dataset.d, y = ui.year; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } ui.month = m; ui.year = y; freshDraft(); render(); }); },
     stepY(el) { guardDirty(() => { ui.year += +el.dataset.d; freshDraft(); render(); }); },
     xf(el) { ui.xf = el.dataset.f; render(); },
+    xfUns() { ui.xf = 'uns'; location.hash = 'expenses'; },
     aMode(el) { ui.aMode = el.dataset.v; render(); },
     close() { closeSheet(); },
     scrim(el, ev) { if (ev.target === el) closeSheet(); },
@@ -897,7 +934,7 @@
     ftype(el) {
       const t = el.dataset.t; if (t === ui.form.type) return; ui.form.type = t;
       layer.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-      const sel = ui.form.upi || ui.form.pasted ? '' : prefs['lastCat_' + t] && L.cat(S, prefs['lastCat_' + t]) && !L.cat(S, prefs['lastCat_' + t]).archived ? prefs['lastCat_' + t] : (activeCats(t)[0] || {}).id;
+      const sel = ui.form.upi || ui.form.pasted || ui.form.wasUns ? '' : prefs['lastCat_' + t] && L.cat(S, prefs['lastCat_' + t]) && !L.cat(S, prefs['lastCat_' + t]).archived ? prefs['lastCat_' + t] : (activeCats(t)[0] || {}).id;
       q('#f-cat').innerHTML = catOptions(t, sel); q('#f-sub').innerHTML = subOptions(sel, null); q('#f-newcat').hidden = true; q('#f-newsub').hidden = true;
     },
     fAddCat() {
@@ -1044,6 +1081,7 @@
       });
       render();
     },
+    toggleAuto(el) { S.upi.auto = el.checked; addLog(`Automatic UPI entry turned ${el.checked ? 'on' : 'off'}`); persist(); configureNative(); render(); },
     toggleSrc(el) { S.upi.sources[el.dataset.k] = el.checked; persist(); configureNative(); },
     allowAlerts() { if (!Native) return; Native.requestAlertPermission().then(r => { ui.nat = Object.assign({}, ui.nat, { alerts: !!(r && r.alerts) }); render(); if (!(r && r.alerts)) toast('Alerts are blocked. Tap Manage and turn on notifications for Family Ledger.'); }).catch(() => toast('Could not ask for alert permission.')); },
     openAlertSettings() { if (Native) Native.openAlertSettings().catch(() => {}); },
@@ -1192,7 +1230,14 @@
     addLog(`Removed the old UPI demo${nx ? ' and ' + nx + ' demo expense' + (nx === 1 ? '' : 's') : ''}`); persist(); render();
   }
   setTimeout(notifyDueToday, 1500);
-  function openReviewFromAlert() { pullUpi().then(() => { closeSheet(); location.hash = 'review'; }); }
+  function openReviewFromAlert() {
+    pullUpi().then(() => {
+      closeSheet();
+      if (S.upi.queue.length) { location.hash = 'review'; return; }
+      const latest = S.expenses.filter(e => e.type === 'uns').sort((a, b) => (b.notifAt || b.created) - (a.notifAt || a.created))[0];
+      location.hash = 'home'; if (latest) setTimeout(() => txForm('exp', latest), 80);
+    });
+  }
   if (Native) {
     refreshNative();
     configureNative().then(pullUpi).then(() => Native.takeLaunchAction()).then(r => { if (r && r.open === 'review') openReviewFromAlert(); }).catch(() => {});
