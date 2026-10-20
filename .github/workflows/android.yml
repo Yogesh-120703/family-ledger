@@ -67,6 +67,13 @@ jobs:
       - name: Name the APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk family-ledger.apk
 
+      - name: Check the APK with Android's own tools
+        run: |
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --verbose --print-certs family-ledger.apk > verify.txt 2>&1 && echo "::notice::apksigner: $(grep -E 'Verifies|v1 scheme|v2 scheme|v3 scheme' verify.txt | tr '\n' ' ')" || { echo "::error::apksigner failed: $(head -5 verify.txt | tr '\n' ' ')"; exit 1; }
+          "$BT/aapt2" dump badging family-ledger.apk > badging.txt
+          echo "::notice::badging: $(grep -E "^package:|sdkVersion|targetSdkVersion|native-code|testOnly" badging.txt | tr '\n' ' ')"
+
       - name: Upload APK (build artifact)
         uses: actions/upload-artifact@v4
         with:
