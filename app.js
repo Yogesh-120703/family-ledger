@@ -196,7 +196,7 @@
   }
   /* UPI tab: payments added automatically from this phone's payment notifications. */
   function vUpiTab(list) {
-    if (Native) Native.clearAlerts().catch(() => {});
+    if (Native) { Native.clearAlerts().catch(() => {}); const now = Date.now(); if (!ui.natAt || now - ui.natAt > 5000) { ui.natAt = now; refreshNative().then(() => { if (ui.view === 'expenses' && ui.pay === 'upi') render(); }); } }
     const needs = S.expenses.filter(e => e.type === 'uns');
     const sorted = list.filter(e => e.type !== 'uns').sort(byNewest);
     return upiSetupCard()
@@ -204,12 +204,26 @@
       + `<section class="panel"><div class="phead"><div><h2>UPI payments · ${FULL[ui.month]}</h2><p>${sorted.length} with a category</p></div></div>
       ${sorted.length ? grouped(sorted, 'exp') : `<div class="empty"><b>No UPI payments yet</b>${IS_NATIVE ? 'Payments you make with GPay, PhonePe, Paytm, BHIM or CRED appear here by themselves.' : 'Payments appear here automatically in the Family Ledger Android app.'}</div>`}</section>`;
   }
+  /* Shows what the phone has actually delivered, so a missed payment can be traced. */
+  function detectionCheck(n) {
+    const seen = n.seenApps || {}, rows = Object.entries(seen).sort((a, b) => (b[1].last || 0) - (a[1].last || 0));
+    const known = pkg => { const k = L.sourceOfPkg(pkg); return k ? L.UPI_SOURCES[k].name : null; };
+    const watching = pkg => !!(L.sourceOfPkg(pkg) || (S.upi.extraPkgs || []).includes(pkg));
+    return `<details class="detcheck" ${rows.length ? '' : 'open'}><summary><strong>Detection check</strong> <span class="muted">· ${n.connectedAt ? 'reader running' : 'reader not started yet'}</span></summary>
+      ${n.connectedAt ? '' : '<p class="flag">Android has not started the payment reader yet. Turn notification access for Family Ledger off and on again, or restart the phone.</p>'}
+      ${rows.length ? `<p class="muted" style="margin:6px 0;font-size:.84rem">Apps that showed a ₹ notification since you turned this on:</p>
+        ${rows.map(([pkg, o]) => `<div class="rowline"><span><strong>${esc(known(pkg) || o.label || pkg)}</strong> <span class="muted">· ${o.n} · last ${fmtStamp(o.last)}</span><br><span class="muted" style="font-size:.76rem">${esc(pkg)}</span></span>
+          ${watching(pkg) ? '<span class="pos" style="font-size:.84rem">Watching</span>' : `<button class="btn small" data-act="watchPkg" data-p="${esc(pkg)}">Watch this app</button>`}</div>`).join('')}`
+        : '<p class="muted" style="margin:6px 0;font-size:.86rem">No ₹ notification has reached Family Ledger yet. Make a payment, then come back here. If nothing appears, your UPI app did not show a notification and your bank SMS app may be turned off for notifications.</p>'}
+    </details>`;
+  }
   function upiSetupCard() {
     if (!Native) return `<section class="panel"><div class="phead"><div><h2>Automatic UPI</h2><p>In the Family Ledger Android app, every UPI payment you make is added here automatically. This browser version cannot read payment notifications.</p></div></div></section>`;
     const n = ui.nat || {}, granted = !!n.permission;
     if (S.upi.enabled && granted) return `<section class="panel upion"><div class="phead"><div><h2>Automatic UPI is on</h2><p>Every payment from GPay, PhonePe, Paytm, BHIM, CRED or a bank debit SMS is added here within seconds.</p></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${n.alerts ? '' : '<button class="btn small" data-act="allowAlerts">Show an alert when a payment is added</button>'}
         <label class="field" style="flex:1;min-width:180px"><span>Payments on this phone are made by</span><select id="upi-owner">${active().map(p => `<option value="${p.id}" ${p.id === upiOwner() ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label></div>
+      ${detectionCheck(n)}
       <div><button class="linkbtn" data-act="upiPause">Turn off automatic UPI</button></div></section>`;
     return `<section class="panel upisetup"><div class="phead"><div><h2>Turn on automatic UPI</h2><p>One-time setup. After this, every UPI payment you make is added here by itself. Android asks you to allow it once.</p></div></div>
       <ol class="steps"><li class="${S.upi.enabled ? 'done' : ''}">Tap <strong>Turn on</strong></li><li class="${granted ? 'done' : ''}">On the next screen, switch on <strong>Family Ledger</strong>, then come back</li></ol>
@@ -740,7 +754,7 @@
   function ingest(items) {
     let added = 0; autoAdded = 0;
     items.forEach(raw => {
-      const src = L.sourceOfPkg(raw.pkg); if (!src || !S.upi.sources[src]) return;
+      const src = L.sourceOfPkg(raw.pkg) || ((S.upi.extraPkgs || []).includes(raw.pkg) ? 'other' : null); if (!src || !S.upi.sources[src]) return;
       const p = L.parseUpi(raw.title, raw.text), key = L.upiKey(raw, p);
       if (p.kind === 'ignore') return;
       const sameText = x => x.src === src && (x.title || '') === (raw.title || '') && (x.text || '') === (raw.text || '');
@@ -821,7 +835,7 @@
   async function refreshNative() { if (!Native) return; try { ui.nat = await Native.status(); } catch (e) { ui.nat = { available: false, error: true }; } if (ui.view === 'settings') render(); }
   async function configureNative() {
     if (!Native) return;
-    try { ui.nat = await Native.configure({ enabled: !!S.upi.enabled, auto: !!S.upi.auto, packages: L.upiPackages(S.upi.sources) }); } catch (e) { toast('Could not update detection settings on this phone.'); }
+    try { ui.nat = await Native.configure({ enabled: !!S.upi.enabled, auto: !!S.upi.auto, packages: L.upiPackages(S.upi.sources).concat(S.upi.extraPkgs || []) }); } catch (e) { toast('Could not update detection settings on this phone.'); }
     if (ui.view === 'settings') render();
   }
   function finishUpi(it, expense) {
@@ -1006,6 +1020,7 @@
     upiPause() {
       sheet(`<h3>Turn off automatic UPI?</h3><p>New UPI payments will not be added. Payments already added stay in your expenses.</p><div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn danger solid" data-act="upiPauseOk">Turn off</button></div>`);
     },
+    watchPkg(el) { const p = el.dataset.p; S.upi.extraPkgs = (S.upi.extraPkgs || []).filter(x => x !== p).concat(p); addLog(`Now watching payment notifications from ${p}`); persist(); configureNative().then(render); toast('Watching this app. Its next payment will be added.'); },
     upiPauseOk() { S.upi.enabled = false; addLog('Automatic UPI turned off'); persist(); configureNative(); closeSheet(); render(); },
     toggleUpi(el) {
       S.upi.enabled = el.checked;

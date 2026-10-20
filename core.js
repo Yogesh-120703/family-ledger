@@ -309,7 +309,8 @@
     paytm: { name: 'Paytm', pkgs: ['net.one97.paytm'], on: true },
     bhim: { name: 'BHIM', pkgs: ['in.org.npci.upiapp'], on: true },
     cred: { name: 'CRED', pkgs: ['com.dreamplug.androidapp'], on: true },
-    sms: { name: 'Bank SMS (Messages app)', pkgs: ['com.google.android.apps.messaging', 'com.samsung.android.messaging'], on: false }
+    sms: { name: 'Bank SMS', pkgs: ['com.google.android.apps.messaging', 'com.samsung.android.messaging', 'com.android.mms', 'com.oneplus.mms', 'com.truecaller', 'com.microsoft.android.smsorganizer'], on: true },
+    other: { name: 'Other app', pkgs: [], on: true }
   };
   const PAY_MODES = ['Cash', 'UPI', 'Card', 'Bank transfer', 'Other'];
   function sourceOfPkg(pkg) { return Object.keys(UPI_SOURCES).find(k => UPI_SOURCES[k].pkgs.includes(pkg)) || null; }

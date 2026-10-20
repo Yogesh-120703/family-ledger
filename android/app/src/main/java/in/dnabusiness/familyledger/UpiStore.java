@@ -24,6 +24,8 @@ final class UpiStore {
     private static final String KEY_PACKAGES = "packages";
     private static final String KEY_QUEUE = "queue";
     private static final String KEY_RECENT = "recent";
+    private static final String KEY_SEEN = "seen_apps";
+    private static final String KEY_CONNECTED = "listener_connected_at";
     private static final int MAX_QUEUE = 200;
     private static final long REPEAT_WINDOW_MS = 10 * 60 * 1000L; // same text again within 10 min = an update of the same notification
 
@@ -47,6 +49,26 @@ final class UpiStore {
         if (!enabled) e.remove(KEY_QUEUE).remove(KEY_RECENT); // turning detection off also clears anything not yet read
         e.apply();
     }
+
+    /** Detection check: remembers which apps posted notifications containing a ₹ amount (app name and count only, never the text). */
+    static synchronized void noteMoneyNotification(Context c, String pkg, String label, boolean watched) {
+        try {
+            JSONObject all = new JSONObject(prefs(c).getString(KEY_SEEN, "{}"));
+            JSONObject o = all.optJSONObject(pkg);
+            if (o == null) o = new JSONObject();
+            o.put("label", label).put("n", o.optInt("n") + 1).put("last", System.currentTimeMillis()).put("watched", watched);
+            all.put(pkg, o);
+            prefs(c).edit().putString(KEY_SEEN, all.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    static JSONObject seenApps(Context c) {
+        try { return new JSONObject(prefs(c).getString(KEY_SEEN, "{}")); } catch (Exception e) { return new JSONObject(); }
+    }
+
+    static void markConnected(Context c) { prefs(c).edit().putLong(KEY_CONNECTED, System.currentTimeMillis()).apply(); }
+
+    static long connectedAt(Context c) { return prefs(c).getLong(KEY_CONNECTED, 0); }
 
     static boolean looksLikePayment(String text) {
         return text != null && MONEY.matcher(text).find() && !OTP.matcher(text).find();

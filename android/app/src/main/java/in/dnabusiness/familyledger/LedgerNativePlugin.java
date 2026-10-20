@@ -149,6 +149,8 @@ public class LedgerNativePlugin extends Plugin {
         r.put("permission", hasAccess());
         r.put("enabled", UpiStore.isEnabled(getContext()));
         r.put("pending", UpiStore.pending(getContext()).length());
+        r.put("connectedAt", UpiStore.connectedAt(getContext()));
+        r.put("seenApps", UpiStore.seenApps(getContext()));
         r.put("alerts", alertsAllowed());
         r.put("sdk", Build.VERSION.SDK_INT);
         call.resolve(r);
