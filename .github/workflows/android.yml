@@ -1,6 +1,5 @@
 # Builds the Family Ledger Android app (APK) on GitHub's servers.
-# No Android Studio needed: push this project to GitHub, then download the APK
-# from the "Actions" tab → latest run → "Artifacts" → family-ledger-apk.
+# The APK is attached to a GitHub Release, so it downloads on a phone without signing in.
 name: Build Android APK
 
 on:
@@ -8,22 +7,32 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 images come with the Android SDK already installed.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      - name: Check Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKM" ]; then echo "::error::Android SDK not found on this build machine"; exit 1; fi
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
 
       - name: Install packages
         run: npm ci
@@ -38,10 +47,33 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
 
-      - name: Upload APK
+      - name: Show build errors
+        if: failure()
+        working-directory: android
+        run: |
+          if [ -f build.log ]; then
+            grep -nE "error:|FAILURE|What went wrong|Could not|> " build.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk family-ledger.apk
+
+      - name: Upload APK (build artifact)
         uses: actions/upload-artifact@v4
         with:
           name: family-ledger-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: family-ledger.apk
+
+      - name: Publish APK download page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" family-ledger.apk \
+            --repo "${{ github.repository }}" \
+            --title "Family Ledger (build ${{ github.run_number }})" \
+            --notes "Install on Android: download family-ledger.apk, open it, allow installing from this source. Test build (debug), not for the Play Store." \
+            --latest
