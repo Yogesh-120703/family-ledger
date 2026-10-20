@@ -4,5 +4,7 @@ android/app/build
 android/build
 android/.gradle
 android/local.properties
-*.keystore
 *.jks
+# release keys must never be committed; the shared debug key in android/signing/ is intentional
+*.keystore
+!android/signing/debug.keystore
