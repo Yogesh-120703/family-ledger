@@ -81,7 +81,7 @@ final class UpiAlerter {
         // Automatic entry: a clear payment is added by the app as "Not sorted" (the app does this the moment
         // it reads the queue). Anything unclear still waits for review.
         boolean added = UpiStore.isAuto(ctx) && amount != null; // the app adds every payment with a clear amount
-        String body = added ? "Added to Family Ledger automatically. Tap to choose a category."
+        String body = added ? "Added to Family Ledger automatically. Tap to see it or set its category."
             : "Amount not clear in the message, so it was not added.";
         if (g.count > 1) body += " (" + g.count + " notifications for this payment)";
 
@@ -101,7 +101,7 @@ final class UpiAlerter {
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pi)
-            .addAction(0, added ? "Choose category" : "Review", pi);
+            .addAction(0, "Open", pi);
         try {
             nm.notify(g.notifId, b.build());
         } catch (SecurityException ignored) {

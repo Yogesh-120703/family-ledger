@@ -112,7 +112,7 @@
     const c = L.catName(S, e.catId), sub = L.subName(S, e.catId, e.subId);
     const who = L.personName(S, isSave ? e.by : e.paidBy, isSave ? e.byName : e.paidName);
     return `<button class="tx" data-act="${isSave ? 'editSave' : 'editExp'}" data-id="${e.id}"><i class="mark ${isSave ? 'save' : e.type}" aria-hidden="true"></i>
-      <span class="t"><strong>${esc(e.name)}</strong><span>${esc(c)}${sub ? ' › ' + esc(sub) : ''} · ${esc(who)} · ${fmtDate(e.date)}${e.mode ? ' · ' + esc(e.mode) : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>
+      <span class="t"><strong>${e.catAuto ? '<span class="muted" title="Category remembered">⟳</span> ' : ''}${esc(e.name)}</strong><span>${esc(c)}${sub ? ' › ' + esc(sub) : ''} · ${esc(who)} · ${fmtDate(e.date)}${e.mode ? ' · ' + esc(e.mode) : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>
       <span class="a">${fmtINR(e.amount)}</span></button>`;
   }
   function limitsBlock(y, m, max) {
@@ -201,8 +201,8 @@
     const sorted = list.filter(e => e.type !== 'uns').sort(byNewest);
     return upiSetupCard()
       + (needs.length ? `<section class="panel needscat"><div class="phead"><div><h2>Needs a category</h2><p>${needs.length} payment${needs.length === 1 ? '' : 's'} added automatically · tap to choose a category</p></div></div>${needs.sort(byNewest).map(e => txRow(e, 'exp')).join('')}</section>` : '')
-      + `<section class="panel"><div class="phead"><div><h2>UPI payments · ${FULL[ui.month]}</h2><p>${sorted.length} with a category</p></div></div>
-      ${sorted.length ? grouped(sorted, 'exp') : `<div class="empty"><b>No UPI payments yet</b>${IS_NATIVE ? 'Payments you make with GPay, PhonePe, Paytm, BHIM or CRED appear here by themselves.' : 'Payments appear here automatically in the Family Ledger Android app.'}</div>`}</section>`;
+      + `<section class="panel"><div class="phead"><div><h2>UPI payments · ${FULL[ui.month]}</h2><p>${sorted.length} with a category${sorted.some(e => e.catAuto) ? ' · ⟳ = category remembered' : ''}</p></div></div>
+      ${sorted.length ? grouped(sorted, 'exp') : `<div class="empty"><b>No UPI payments yet</b>${IS_NATIVE ? 'Payments you make with GPay, PhonePe, Paytm, BHIM or CRED appear here by themselves.' : 'Payments appear here automatically in the Family Ledger Android app.'}</div>`}</section>` + rememberedList();
   }
   /* Shows what the phone has actually delivered, so a missed payment can be traced. */
   function detectionCheck(n) {
@@ -216,6 +216,25 @@
           ${watching(pkg) ? '<span class="pos" style="font-size:.84rem">Watching</span>' : `<button class="btn small" data-act="watchPkg" data-p="${esc(pkg)}">Watch this app</button>`}</div>`).join('')}`
         : '<p class="muted" style="margin:6px 0;font-size:.86rem">No ₹ notification has reached Family Ledger yet. Make a payment, then come back here. If nothing appears, your UPI app did not show a notification and your bank SMS app may be turned off for notifications.</p>'}
     </details>`;
+  }
+  function askRememberSheet(a) {
+    ui.pendingRemember = a;
+    sheet(`<h3>Change for future payments too?</h3>
+      <p>Payments to <strong style="color:var(--ink)">${esc(a.payee)}</strong> usually go to <strong style="color:var(--ink)">${esc(a.from)}</strong>. You changed this one to <strong style="color:var(--ink)">${esc(a.to)}</strong>.</p>
+      <div class="choices">
+        <button class="choice" data-act="rememberOnlyThis"><strong>Only this payment</strong><span>Future payments to ${esc(a.payee)} still go to ${esc(a.from)}.</span></button>
+        <button class="choice" data-act="rememberAll"><strong>All future payments</strong><span>From now on, payments to ${esc(a.payee)} go to ${esc(a.to)}.</span></button>
+      </div>`);
+  }
+  /* Remembered people: shown in the UPI tab so a wrong choice can be forgotten. */
+  function rememberedList() {
+    const rows = Object.entries(S.upi.payeeCat || {}).map(([k, m]) => ({ k, m, c: L.cat(S, m.catId) })).filter(x => x.c && !x.c.archived && (x.c.kind === 'need' || x.c.kind === 'life'))
+      .sort((a, b) => (b.m.t || 0) - (a.m.t || 0));
+    if (!rows.length) return '';
+    return `<section class="panel"><details><summary><strong>Remembered categories</strong> <span class="muted">· ${rows.length} ${rows.length === 1 ? 'person' : 'people'}</span></summary>
+      <p class="muted" style="margin:6px 0;font-size:.84rem">Payments to these people get their category automatically. To change one, edit any of their payments.</p>
+      ${rows.map(x => `<div class="rowline"><span><strong>${esc(x.m.name || x.k)}</strong><br><span class="muted" style="font-size:.82rem"><span class="tag ${x.c.kind}">${KINDS[x.c.kind]}</span> ${esc(x.c.name)}${x.m.subId ? ' › ' + esc(L.subName(S, x.c.id, x.m.subId)) : ''}</span></span><button class="btn small ghost" data-act="forgetPayee" data-k="${esc(x.k)}">Forget</button></div>`).join('')}
+    </details></section>`;
   }
   function upiSetupCard() {
     if (!Native) return `<section class="panel"><div class="phead"><div><h2>Automatic UPI</h2><p>In the Family Ledger Android app, every UPI payment you make is added here automatically. This browser version cannot read payment notifications.</p></div></div></section>`;
@@ -582,8 +601,14 @@
       const old = list.find(x => x.id === f.id); if (!old) { ui.saving = false; closeSheet(); return; }
       touched.push(old.date);
       const before = old.name + ' ' + fmtINR(old.amount);
+      const prevCat = old.catId;
       Object.assign(old, rec); delete old.sample; if (!isSave) old.type = f.type;
-      if (f.wasUns && old.payee && L.cat(S, old.catId)) S.upi.payeeCat[payeeKey(old.payee)] = { catId: old.catId, type: old.type };
+      if (!isSave && old.mode === 'UPI' && old.payee && L.cat(S, old.catId)) {
+        const r = rememberedFor(old.payee);
+        if (!r) { remember(old.payee, old); ui.rememberNote = old.payee; }
+        else if (r.cat.id !== old.catId && prevCat !== old.catId) ui.askRemember = { id: old.id, payee: old.payee, from: r.cat.name, to: L.catName(S, old.catId) };
+        delete old.catAuto;
+      }
       if (who) { if (isSave) { old.by = who; delete old.byName; } else { old.paidBy = who; delete old.paidName; } }
       addLog(f.wasUns ? `Category chosen · ${rec.name} ${fmtINR(amount)} → ${L.catName(S, catId)}` : `${isSave ? 'Savings' : 'Expense'} edited · ${before} → ${rec.name} ${fmtINR(amount)} (${fmtDate(date)})`);
     } else {
@@ -611,6 +636,8 @@
     render(); ui.saving = false;
     if (f.pasted) { ui.pasted = null; const tb = document.getElementById('upi-test'); if (tb) tb.value = ''; const to = document.getElementById('upi-test-out'); if (to) to.innerHTML = ''; }
     if (f.pasted && !f.id) { toast(`${fmtINR(amount)} added to Expenses · ${FULL[m]} ${y}`); if (!isSave) runAlerts(touched); return; }
+    if (ui.askRemember) { const a = ui.askRemember; ui.askRemember = null; askRememberSheet(a); if (!isSave) runAlerts(touched); return; }
+    if (ui.rememberNote) { const pn = ui.rememberNote; ui.rememberNote = null; toast(`Saved. Next payments to ${pn} will go to ${L.catName(S, catId)} automatically.`); if (!isSave) runAlerts(touched); return; }
     if (f.wasUns) { const left = S.expenses.filter(e => e.type === 'uns').length; toast(left ? `Saved. ${left} more payment${left === 1 ? '' : 's'} need a category` : 'Saved. All payments have a category'); if (!isSave) runAlerts(touched); return; }
     toast(f.id ? 'Changes saved' : `${fmtINR(amount)} saved${y !== d0.getFullYear() || m !== d0.getMonth() ? ' to ' + FULL[m] + ' ' + y : ''}`);
     if (!isSave) runAlerts(touched);
@@ -731,6 +758,17 @@
     if (ex) return `You already have ${fmtINR(ex.amount)} “${ex.name}” on ${fmtDate(ex.date)}. It may be the same payment.`;
     return null;
   }
+  /* Remembered category for a payee, if it still exists. */
+  function rememberedFor(payee) {
+    const m = payee && S.upi.payeeCat[payeeKey(payee)], c = m && L.cat(S, m.catId);
+    return c && !c.archived && (c.kind === 'need' || c.kind === 'life') ? { cat: c, subId: m.subId && c.subs.some(x => x.id === m.subId && !x.archived) ? m.subId : null } : null;
+  }
+  function applyRemembered(e) {
+    const r = rememberedFor(e.payee); if (!r) return false;
+    e.type = r.cat.kind; e.catId = r.cat.id; e.subId = r.subId; e.catAuto = true;
+    return true;
+  }
+  function remember(payee, e) { if (payee && L.cat(S, e.catId)) S.upi.payeeCat[payeeKey(payee)] = { catId: e.catId, subId: e.subId || null, type: e.type, name: payee, t: Date.now() }; }
   function learnedCat(it) {
     const m = it.payee && S.upi.payeeCat[payeeKey(it.payee)], c = m && L.cat(S, m.catId);
     return c && !c.archived && c.kind !== 'save' ? c : null;
@@ -777,7 +815,7 @@
       if (saved) {
         // another notification for a payment already added: fill in details it was missing, then skip it
         if (saved.auto && saved.type === 'uns') {
-          if (!saved.payee && it.payee) { saved.payee = it.payee; if (saved.name === 'UPI payment') saved.name = it.payee; }
+          if (!saved.payee && it.payee) { saved.payee = it.payee; if (saved.name === 'UPI payment') saved.name = it.payee; if (applyRemembered(saved)) addLog(`Category remembered for ${it.payee} → ${L.catName(S, saved.catId)}`); }
           if (!saved.upiRef && it.ref && !S.expenses.some(e => e.upiRef === it.ref)) { saved.upiRef = it.ref; saved.note = 'UPI ref ' + it.ref; }
         }
         S.upi.skipped.unshift({ t: raw.postedAt, src, kind: 'duplicate', amount: p.amount, text: ((raw.title || '') + ' — ' + (raw.text || '')).slice(0, 180) });
@@ -803,15 +841,17 @@
   }
   let autoAdded = 0;
   /* Automatic entry: a clear outgoing payment becomes an expense straight away.
-     It gets no category (type 'uns' = Not sorted); the person chooses one later. */
+     First payment to someone: no category (type 'uns' = Not sorted); the person chooses one.
+     Later payments to the same person: the category chosen before is filled in automatically. */
   function autoAdd(it) {
     const e = { id: L.uid('x'), created: Date.now(), name: it.payee || 'UPI payment', amount: it.amount, date: it.date, type: 'uns', catId: null, subId: null,
       paidBy: upiOwner(), note: it.ref ? 'UPI ref ' + it.ref : '', mode: 'UPI', source: 'upi-auto', srcApp: it.src, notifAt: it.postedAt, auto: true };
     if (it.payee) e.payee = it.payee;
     if (it.ref) e.upiRef = it.ref;
+    const known = applyRemembered(e);
     S.expenses.push(e);
     S.upi.seen[it.key] = { d: 'saved', t: Date.now(), x: e.id };
-    addLog(`UPI payment added automatically · ${e.name} ${fmtINR(e.amount)} (${fmtDate(e.date)}) · needs a category`);
+    addLog(`UPI payment added automatically · ${e.name} ${fmtINR(e.amount)} (${fmtDate(e.date)}) · ${known ? L.catName(S, e.catId) + ' (remembered)' : 'needs a category'}`);
     return e;
   }
   function samePayment(a, b) {
@@ -1021,6 +1061,13 @@
       sheet(`<h3>Turn off automatic UPI?</h3><p>New UPI payments will not be added. Payments already added stay in your expenses.</p><div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn danger solid" data-act="upiPauseOk">Turn off</button></div>`);
     },
     watchPkg(el) { const p = el.dataset.p; S.upi.extraPkgs = (S.upi.extraPkgs || []).filter(x => x !== p).concat(p); addLog(`Now watching payment notifications from ${p}`); persist(); configureNative().then(render); toast('Watching this app. Its next payment will be added.'); },
+    rememberOnlyThis() { const a = ui.pendingRemember; ui.pendingRemember = null; closeSheet(); render(); if (a) toast(`Only this payment changed. ${a.payee} stays ${a.from}.`); },
+    rememberAll() {
+      const a = ui.pendingRemember; ui.pendingRemember = null; const e = a && S.expenses.find(x => x.id === a.id);
+      if (e) { remember(e.payee, e); addLog(`Remembered category for ${e.payee} changed ${a.from} → ${a.to}`); persist(); }
+      closeSheet(); render(); if (a) toast(`Future payments to ${a.payee} will go to ${a.to}.`);
+    },
+    forgetPayee(el) { const m = S.upi.payeeCat[el.dataset.k]; delete S.upi.payeeCat[el.dataset.k]; addLog(`Forgot remembered category for ${(m && m.name) || el.dataset.k}`); persist(); render(); toast('Forgotten. Next payment will ask for a category.'); },
     upiPauseOk() { S.upi.enabled = false; addLog('Automatic UPI turned off'); persist(); configureNative(); closeSheet(); render(); },
     toggleUpi(el) {
       S.upi.enabled = el.checked;
