@@ -34,7 +34,11 @@ final class UpiText {
     private static final Pattern REF1 = Pattern.compile("\\b(?:upi\\s*)?(?:ref(?:erence)?\\.?\\s*(?:no\\.?|number|id)?|utr|rrn|txn\\.?\\s*id|transaction\\s*id)\\s*[:#-]?\\s*([0-9]{12})\\b", CI);
     private static final Pattern REF2 = Pattern.compile("\\b([0-9]{12})\\b");
     private static final Pattern UPI_WORD = Pattern.compile("\\bupi\\b", CI);
-    private static final Pattern PAYEE = Pattern.compile("\\b(?:paid|sent|transferred|payment|debited)\\b[^.]{0,60}?\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\\s+(?:on|via|using|from|for|upi|ref|successfully|is|was|has|with|thru|through)\\b|[.,!;]|$)", CI);
+    private static final Pattern PAYEE = Pattern.compile("\\b(?:paid|sent|transferred|payment|debited|trf)\\b(?:[^.]|\\.(?=[0-9])){0,80}?\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\\s+(?:on|via|using|from|for|upi|ref|refno|successfully|is|was|has|with|thru|through|not)\\b|[.,!;(]|$)", CI);
+    private static final Pattern UPI_NAME = Pattern.compile("\\bupi[-/]([A-Za-z][A-Za-z .&']{1,40}?)[-/]", CI);
+    private static final Pattern TO_ACCT = Pattern.compile("\\bcredited\\s+to\\s+(?:a/c|ac|account)\\.?\\s*(?:no\\.?)?\\s*[x*]*([0-9]{3,6})\\b", CI);
+    private static final Pattern HONORIFIC = Pattern.compile("^(mr|mrs|ms|miss|shri|smt|dr)\\.?\\s+", CI);
+    private static final Pattern DEBITED_BY = Pattern.compile("\\bdebited\\s+(?:by|for|with)\\s+([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\b", CI);
     private static final Pattern VPA = Pattern.compile("\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9._-]+@[A-Za-z0-9.-]*[A-Za-z0-9])", CI);
     private static final Pattern PAYEE_BAD = Pattern.compile("^(a/c|ac|account|your)\\b", CI);
 
@@ -55,6 +59,10 @@ final class UpiText {
                 if (v > 0 && !amounts.contains(v)) amounts.add(v);
             } catch (NumberFormatException ignored) { }
         }
+        if (amounts.isEmpty()) {
+            Matcher bm = DEBITED_BY.matcher(t);
+            if (bm.find()) { try { double v = Math.round(Double.parseDouble(bm.group(1).replace(",", "")) * 100) / 100.0; if (v > 0) amounts.add(v); } catch (NumberFormatException ignored) { } }
+        }
         if (amounts.size() == 1) r.amount = amounts.get(0);
 
         Matcher ref = REF1.matcher(t);
@@ -64,9 +72,11 @@ final class UpiText {
         Matcher vm = VPA.matcher(t);
         if (vm.find()) r.payee = vm.group(1);
         else {
-            Matcher pm = PAYEE.matcher(t);
-            if (pm.find()) { String p = pm.group(1).trim(); if (!PAYEE_BAD.matcher(p).find()) r.payee = p; }
+            Matcher um = UPI_NAME.matcher(t), pm = PAYEE.matcher(t);
+            String p = um.find() ? um.group(1) : pm.find() ? pm.group(1) : null;
+            if (p != null) { p = p.trim(); if (!PAYEE_BAD.matcher(p).find()) r.payee = HONORIFIC.matcher(p).replaceFirst(""); }
         }
+        if (r.payee == null) { Matcher am = TO_ACCT.matcher(t); if (am.find()) r.payee = "A/c ending " + am.group(1); }
 
         boolean isDebit = DEBIT_RX.matcher(t).find();
         if (PROMO.matcher(t).find() && !isDebit) { r.kind = IGNORE; return r; }

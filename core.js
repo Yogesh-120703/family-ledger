@@ -400,6 +400,9 @@
     credit: /\b(received|credited|has sent you|sent you|added to (your )?(wallet|account|balance|bank))\b/i,
     debit: /(\byou paid\b|\bpaid to\b|\bpaid (₹|rs\b|rs\.|inr\b)|\bpaid successfully\b|\bpayment ((of|to) [^.]{0,40}?)?(was |is |has been )?successful\b|(₹|rs\.?|inr)\s*[0-9][0-9,.]*\s*(has been |was |is )?(paid|sent|debited|spent)\b|\bsent (₹|rs\b|rs\.|inr\b)|\byou sent\b|\bmoney sent\b|\bdebited\b|\btransferred to\b|\bspent\b)/i
   };
+  const RX_UPI_NAME = /\bupi[-\/]([A-Za-z][A-Za-z .&']{1,40}?)[-\/]/i;
+  const RX_PAYEE = /\b(?:paid|sent|transferred|payment|debited|trf)\b(?:[^.]|\.(?=[0-9])){0,80}?\bto\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\s+(?:on|via|using|from|for|upi|ref|refno|successfully|is|was|has|with|thru|through|not)\b|[.,!;(]|$)/i;
+  const RX_TO_ACCT = /\bcredited\s+to\s+(?:a\/c|ac|account)\.?\s*(?:no\.?)?\s*[x*]*([0-9]{3,6})\b/i;
   function parseUpi(title, text) {
     const t = ((title || '') + ' . ' + (text || '')).replace(/\s+/g, ' ').trim();
     const out = { kind: 'unknown', amount: null, payee: null, ref: null, issues: [] };
@@ -411,13 +414,17 @@
       if (/(bal|balance|avl|available|limit|outstanding)\W*$/.test(before) || /(bal|balance)[^a-z]{0,6}(is|:)?\W*$/.test(before)) continue;
       const v = parseMoney(mt[1]); if (v != null && !amounts.includes(v)) amounts.push(v);
     }
+    // some banks (SBI) write the amount without ₹/Rs: "debited by 100.0"
+    if (!amounts.length) { const bm = t.match(/\bdebited\s+(?:by|for|with)\s+([0-9][0-9,]*(?:\.[0-9]{1,2})?)\b/i); if (bm) { const v = parseMoney(bm[1]); if (v != null) amounts.push(v); } }
     if (amounts.length === 1) out.amount = amounts[0];
     else out.issues.push(amounts.length ? 'amount-ambiguous' : 'amount-missing');
     const refM = t.match(/\b(?:upi\s*)?(?:ref(?:erence)?\.?\s*(?:no\.?|number|id)?|utr|rrn|txn\.?\s*id|transaction\s*id)\s*[:#-]?\s*([0-9]{12})\b/i) || (/\bupi\b/i.test(t) && t.match(/\b([0-9]{12})\b/));
     if (refM) out.ref = refM[1];
     const vpaM = t.match(/\bto\s+(?:vpa\s+)?([A-Za-z0-9._-]+@[A-Za-z0-9.-]*[A-Za-z0-9])/i);
-    const payM = vpaM ? [null, vpaM[1]] : t.match(/\b(?:paid|sent|transferred|payment|debited)\b[^.]{0,60}?\bto\s+(?:vpa\s+)?([A-Za-z0-9@._&' -]{2,40}?)(?=\s+(?:on|via|using|from|for|upi|ref|successfully|is|was|has|with|thru|through)\b|[.,!;]|$)/i);
-    if (payM && !/^(a\/c|ac|account|your)\b/i.test(payM[1].trim())) out.payee = payM[1].trim();
+    // who was paid: UPI ID, then "UPI-NAME-" (ICICI), then "... to NAME", then the receiving account number
+    const payM = vpaM ? [null, vpaM[1]] : t.match(RX_UPI_NAME) || t.match(RX_PAYEE);
+    if (payM && !/^(a\/c|ac|account|your)\b/i.test(payM[1].trim())) out.payee = payM[1].trim().replace(/^(mr|mrs|ms|miss|shri|smt|dr)\.?\s+/i, '');
+    if (!out.payee) { const am = t.match(RX_TO_ACCT); if (am) out.payee = 'A/c ending ' + am[1]; }
     const isDebit = RX.debit.test(t);
     if (RX.promo.test(t) && !isDebit) { out.kind = 'ignore'; return out; } // ads and offers from payment apps
     if (RX.failed.test(t)) out.kind = 'failed';

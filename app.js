@@ -586,7 +586,7 @@
   function catOptions(kind, sel) {
     // Payment without a type yet: show every category, grouped, so the box is never empty.
     if (kind === 'uns') return '<option value="" selected disabled>Choose a category</option>'
-      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + S.cats.filter(c => c.kind === k && !c.archived).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>').join('');
+      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + S.cats.filter(c => c.kind === k && !c.archived).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>').join('') + '<option value="__new">＋ New category (like Family)…</option>';
     return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel)).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
@@ -608,7 +608,7 @@
     const modeVal = upiItem || opts.pasted ? 'UPI' : rec.mode != null ? rec.mode : (isNew ? (ui.pay === 'upi' ? 'UPI' : 'Cash') : '');
     const who = isSave ? rec.by : rec.paidBy, orphan = rec.id && !person(who);
     sheet(`<h3>${type === 'uns' ? 'Choose a category' : upiItem ? 'Save UPI payment' : opts.pasted ? 'Add pasted payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
-      ${type === 'uns' ? `<p>Added automatically from a UPI notification${rec.srcApp && L.UPI_SOURCES[rec.srcApp] ? ' (' + esc(L.UPI_SOURCES[rec.srcApp].name) + ')' : ''}. Choose the <strong style="color:var(--ink)">Category</strong> below, then tap Save. If this was not your payment, tap Delete.</p>` : ''}
+      ${type === 'uns' ? `<p>Added automatically from a UPI notification${rec.srcApp && L.UPI_SOURCES[rec.srcApp] ? ' (' + esc(L.UPI_SOURCES[rec.srcApp].name) + ')' : ''}. Choose the <strong style="color:var(--ink)">Category</strong> below, then tap Save. ${rec.payee ? `Next payments to <strong style="color:var(--ink)">${esc(rec.payee)}</strong> will get this category automatically.` : 'The message did not show who was paid, so this category cannot be remembered for next time.'} If this was not your payment, tap Delete.</p>` : ''}
       <label class="field"><span>Amount (₹)</span><input id="f-amt" class="big" inputmode="decimal" enterkeyhint="done" value="${rec.amount}" placeholder="0" autocomplete="off" autofocus></label>
       ${isSave ? '' : `<div class="seg" role="group" aria-label="Expense type"><button class="need ${type === 'need' ? 'on' : ''}" data-act="ftype" data-t="need">Necessary</button><button class="life ${type === 'life' ? 'on' : ''}" data-act="ftype" data-t="life">Lifestyle</button></div>`}
       <div class="frow"><label class="field"><span>Category</span><select id="f-cat">${catOptions(catKind, rec.catId)}</select></label>
@@ -828,16 +828,23 @@
     return null;
   }
   /* Remembered category for a payee, if it still exists. */
+  const payeesOf = e => [e.payee].concat(e.alias || []).filter(Boolean);
   function rememberedFor(payee) {
     const m = payee && S.upi.payeeCat[payeeKey(payee)], c = m && L.cat(S, m.catId);
     return c && !c.archived && (c.kind === 'need' || c.kind === 'life') ? { cat: c, subId: m.subId && c.subs.some(x => x.id === m.subId && !x.archived) ? m.subId : null } : null;
   }
   function applyRemembered(e) {
-    const r = rememberedFor(e.payee); if (!r) return false;
+    let r = null; payeesOf(e).some(p => (r = rememberedFor(p))); if (!r) return false;
     e.type = r.cat.kind; e.catId = r.cat.id; e.subId = r.subId; e.catAuto = true;
     return true;
   }
-  function remember(payee, e) { if (payee && L.cat(S, e.catId)) S.upi.payeeCat[payeeKey(payee)] = { catId: e.catId, subId: e.subId || null, type: e.type, name: payee, t: Date.now() }; }
+  // Saves the category under every name this payment was seen with (UPI app name, bank SMS name, UPI ID).
+  function remember(payee, e) {
+    if (!payee || !L.cat(S, e.catId)) return;
+    [payee].concat((e.alias || []).filter(a => payeeKey(a) !== payeeKey(payee))).forEach((p, i) => {
+      S.upi.payeeCat[payeeKey(p)] = { catId: e.catId, subId: e.subId || null, type: e.type, name: p, t: Date.now() + i };
+    });
+  }
   function learnedCat(it) {
     const m = it.payee && S.upi.payeeCat[payeeKey(it.payee)], c = m && L.cat(S, m.catId);
     return c && !c.archived && c.kind !== 'save' ? c : null;
@@ -883,8 +890,12 @@
       const saved = S.expenses.find(e => e.notifAt && e.amount === it.amount && Math.abs(e.notifAt - it.postedAt) <= SAME_PAYMENT_MS && !(e.upiRef && it.ref && e.upiRef !== it.ref) && !differentPayee(e.payee, it.payee));
       if (saved) {
         // another notification for a payment already added: fill in details it was missing, then skip it
-        if (saved.auto && saved.type === 'uns') {
-          if (!saved.payee && it.payee) { saved.payee = it.payee; if (saved.name === 'UPI payment') saved.name = it.payee; if (applyRemembered(saved)) addLog(`Category remembered for ${it.payee} → ${L.catName(S, saved.catId)}`); }
+        if (saved.auto) {
+          const newName = it.payee && !payeesOf(saved).some(p => payeeKey(p) === payeeKey(it.payee));
+          if (!saved.payee && it.payee) { saved.payee = it.payee; if (saved.name === 'UPI payment') saved.name = it.payee; }
+          else if (newName) (saved.alias = saved.alias || []).push(it.payee);
+          if (saved.type === 'uns') { if (applyRemembered(saved)) addLog(`Category remembered for ${saved.payee} → ${L.catName(S, saved.catId)}`); }
+          else if (newName && saved.payee && rememberedFor(saved.payee)) remember(saved.payee, saved); // learn the other name too
           if (!saved.upiRef && it.ref && !S.expenses.some(e => e.upiRef === it.ref)) { saved.upiRef = it.ref; saved.note = 'UPI ref ' + it.ref; }
         }
         S.upi.skipped.unshift({ t: raw.postedAt, src, kind: 'duplicate', amount: p.amount, text: ((raw.title || '') + ' — ' + (raw.text || '')).slice(0, 180) });
@@ -904,8 +915,12 @@
   const SAME_PAYMENT_MS = 3 * 60 * 1000;
   // Two named payees that differ mean two payments. A UPI ID (name@bank) is not compared,
   // because a bank SMS often shows the UPI ID where the UPI app shows the person's name.
+  // "Ravi" (UPI app) and "RAVI KUMAR" (bank SMS) share a name, so they are the same person.
+  const nameWords = p => payeeKey(p).split(/[^a-z0-9]+/).filter(x => x.length >= 3);
   function differentPayee(a, b) {
-    if (!a || !b || a.includes('@') || b.includes('@')) return false;
+    const idLike = p => p.includes('@') || /^a\/c ending /i.test(p);
+    if (!a || !b || idLike(a) || idLike(b)) return false;
+    const wa = nameWords(a); if (nameWords(b).some(x => wa.includes(x))) return false;
     return payeeKey(a) !== payeeKey(b);
   }
   let autoAdded = 0;
@@ -998,6 +1013,8 @@
       q('#f-cat').innerHTML = catOptions(t, sel); q('#f-sub').innerHTML = subOptions(sel, null); q('#f-newcat').hidden = true; q('#f-newsub').hidden = true;
     },
     fAddCat() {
+      // a new category on a payment that has no type yet goes under Necessary
+      if (ui.form.kind !== 'save' && ui.form.type === 'uns') { ui.form.type = 'need'; layer.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x.dataset.t === 'need')); }
       const kind = formCatKind(), v = q('#f-newcat-in').value, e = nameErr(v, S.cats.filter(c => c.kind === kind));
       if (e) { q('#f-err').textContent = e; return; }
       const c = createCat(kind, v); persist(); q('#f-cat').innerHTML = catOptions(kind, c.id); q('#f-sub').innerHTML = subOptions(c.id, null); q('#f-newcat').hidden = true; q('#f-err').textContent = ''; toast('Category added');
