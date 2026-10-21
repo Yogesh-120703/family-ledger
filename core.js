@@ -438,6 +438,22 @@
     return out;
   }
   function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); }
+  /* The "shape" of a payment message: the text with amount, date, time, balance and reference number taken out.
+     Two payments to the same person from the same bank leave the same shape, even when the person's name
+     cannot be picked out of the message. */
+  function upiShape(title, text) {
+    let t = ((title || '') + ' . ' + (text || '')).toLowerCase().replace(/\s+/g, ' ');
+    t = t.replace(/\b(?:avl\.?\s*|avail\.?\s*|available\s*)?bal(?:ance)?\b[^a-z]{0,30}/g, ' ')
+      .replace(/(?:₹|\brs\.?|\binr)\s*[0-9][0-9,]*(?:\.[0-9]+)?/g, ' ')
+      .replace(/\b(debited|credited)\s+(by|for|with)\s+[0-9][0-9,]*(?:\.[0-9]+)?/g, '$1 $2 ')
+      .replace(/\b\d{1,2}(?:st|nd|rd|th)?[-\/ .]?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\/ .,]?\s?\d{2,4}\b/g, ' ')
+      .replace(/\b\d{1,4}[-\/.]\d{1,2}[-\/.]\d{1,4}\b/g, ' ')
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm|hrs)?\b/g, ' ')
+      .replace(/\b\d{11,}\b/g, ' ')
+      .replace(/\b\d+\.\d+\b/g, ' ')
+      .replace(/[^a-z0-9@]+/g, ' ').trim();
+    return t.length >= 8 ? fnv(t) : null;
+  }
   function upiKey(raw, parsed) { return parsed.ref ? 'ref:' + parsed.ref : 'h:' + fnv(raw.pkg + '|' + (raw.title || '') + '|' + (raw.text || '')); }
 
   /* ---------- sample data (opt-in, tagged so it can be removed cleanly) ---------- */
@@ -540,7 +556,7 @@
     delete S.sampleTurnedOnLimits; S.sampleLoaded = false;
   }
 
-  Object.assign(L, { DEFAULT_TARGETS, targetsOf, pctOf, monthReport, lastMonths, insights, UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
+  Object.assign(L, { DEFAULT_TARGETS, targetsOf, pctOf, monthReport, lastMonths, insights, UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiShape, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
     parseMoney, validDate, cat, catName, subName, person, personName, catUses, subUses, amt, incomeMonth, hasIncome,
     inMonth, inYear, sum, round2, totals, yearSeries, yearTotals, byCat, findTwin, isDoubleTap, LEVEL, limitLabel,
     effectiveLimits, limitStatus, checkAlerts, yearCSV, toCSV });
