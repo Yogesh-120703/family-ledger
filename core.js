@@ -299,6 +299,81 @@
       total: pair(sum(exNow), sum(exPrev)), save: pair(sum(svNow), sum(svPrev)), cats };
   }
 
+  /* ---------- monthly report ---------- */
+  // "Left after expenses" = income − expenses. Recorded savings (RD, FD…) are shown separately,
+  // so nothing is counted twice.
+  const DEFAULT_TARGETS = { needs: 50, wants: 30, save: 20 };
+  function targetsOf(S) { const t = Object.assign({}, DEFAULT_TARGETS, S.targets || {}); return t; }
+  function pctOf(part, whole) { return whole > 0 ? Math.round(part / whole * 1000) / 10 : null; }
+  function monthReport(S, y, m) {
+    const t = totals(S, y, m), py = m ? y : y - 1, pm = m ? m - 1 : 11, p = totals(S, py, pm);
+    const ex = inMonth(S.expenses, y, m), cats = byCat(S, ex);
+    const left = round2(t.income - t.total), prevLeft = round2(p.income - p.total);
+    const top = cats[0] || null;
+    const r = {
+      y, m, py, pm, income: t.income, hasIncome: t.hasIncome, expenses: t.total, need: t.need, life: t.life, uns: t.uns,
+      saved: t.save, left, leftPct: pctOf(left, t.income), nExp: t.nExp, cats, top, topPct: top ? pctOf(top.v, t.total) : null,
+      prev: { income: p.income, expenses: p.total, left: prevLeft, leftPct: pctOf(prevLeft, p.income), empty: p.empty },
+      change: { income: round2(t.income - p.income), expenses: round2(t.total - p.total), left: round2(left - prevLeft) },
+      split: { needs: pctOf(t.need, t.income), wants: pctOf(t.life, t.income), save: pctOf(left, t.income) },
+      empty: t.empty
+    };
+    r.change.incomePct = pctOf(r.change.income, p.income); r.change.expensesPct = pctOf(r.change.expenses, p.total);
+    return r;
+  }
+  function lastMonths(S, y, m, n) { // oldest first, ending with (y, m)
+    const out = []; for (let i = n - 1; i >= 0; i--) { const k = keyFromIndex(monthIndex(mk(y, m)) - i); const yy = +k.slice(0, 4), mm = +k.slice(5) - 1; out.push(Object.assign({ y: yy, m: mm }, totals(S, yy, mm))); }
+    return out;
+  }
+
+  /* ---------- smart suggestions ----------
+     Built only from saved records. Each item: { key, level: 'good' | 'warn' | 'info', text }.
+     Months still in progress are compared day-for-day with last month (compareMonths). */
+  function insights(S, y, m, todayStr) {
+    const r = monthReport(S, y, m), out = [], tg = targetsOf(S), fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+    const isCurrent = todayStr && todayStr.slice(0, 7) === mk(y, m);
+    if (!r.hasIncome && r.nExp < 3) { out.push({ key: 'nodata', level: 'info', text: 'You have not recorded enough income and expenses yet to give useful suggestions. Add this month’s income and a few expenses to see them.' }); return out; }
+    if (!r.hasIncome) out.push({ key: 'noincome', level: 'info', text: `Add your income for ${FULL[m]} to see how much of it you are keeping.` });
+    if (r.nExp < 3) { out.push({ key: 'fewexp', level: 'info', text: 'Only a few expenses are recorded this month, so suggestions may not be reliable yet.' }); }
+    // limits (budget) alerts, if the user has set limits
+    limitStatus(S, y, m).filter(x => x.level !== 'ok').slice(0, 2).forEach(x => out.push({ key: 'lim-' + x.item.id, level: x.level === 'near' ? 'info' : 'warn',
+      text: x.level === 'over' ? `You have gone ${fmt(-x.left)} over your ${x.label} limit (${fmt(x.limit)}).` : `You have used ${Math.round(x.ratio * 100)}% of your ${x.label} limit. ${fmt(x.left)} left.` }));
+    // income kept / overspent
+    if (r.hasIncome && r.nExp >= 3) {
+      if (r.left < 0) out.push({ key: 'overspent', level: 'warn', text: `You spent ${fmt(-r.left)} more than your income this month. Check the biggest categories below to see where it went.` });
+      else if (r.leftPct >= tg.save && !isCurrent) out.push({ key: 'kept', level: 'good', text: `You kept ${Math.round(r.leftPct)}% of your income this month (${fmt(r.left)}). Great progress!` });
+      else if (r.leftPct >= tg.save) out.push({ key: 'kept', level: 'good', text: `So far you have kept ${Math.round(r.leftPct)}% of your income this month. Keep it up!` });
+      if (!r.prev.empty && r.prev.leftPct != null && r.leftPct != null && !isCurrent && r.leftPct - r.prev.leftPct >= 3)
+        out.push({ key: 'improved', level: 'good', text: `You kept more of your income than in ${FULL[r.pm]} (${Math.round(r.leftPct)}% vs ${Math.round(r.prev.leftPct)}%). Nice work!` });
+    }
+    // category changes vs last month (same days if this month is in progress)
+    const cmp = compareMonths(S, y, m, todayStr);
+    if (cmp) {
+      cmp.cats.filter(c => c.type !== 'uns' && c.before >= 300 && c.diff >= 300 && c.diff / c.before >= 0.15).slice(0, 2).forEach(c => out.push({ key: 'up-' + c.catId, level: 'warn',
+        text: `${c.name} spending is up ${Math.round(c.diff / c.before * 100)}% (${fmt(c.diff)} more) compared with ${cmp.partial ? 'the same days of ' : ''}${FULL[cmp.pm]}.` }));
+      cmp.cats.filter(c => c.type !== 'uns' && c.before >= 500 && -c.diff >= 300 && -c.diff / c.before >= 0.2).slice(0, 1).forEach(c => out.push({ key: 'down-' + c.catId, level: 'good',
+        text: `You spent ${fmt(-c.diff)} less on ${c.name} than in ${FULL[cmp.pm]}. Well done!` }));
+    }
+    // higher than usual: compared with the average of the previous 3 months that have data
+    const hist = [1, 2, 3].map(i => { const k = keyFromIndex(monthIndex(mk(y, m)) - i); return byCat(S, inMonth(S.expenses, +k.slice(0, 4), +k.slice(5) - 1)); });
+    const monthsWithData = hist.filter(h => h.length).length;
+    if (monthsWithData >= 2 && !isCurrent) {
+      r.cats.filter(c => c.type !== 'uns').forEach(c => {
+        const avg = hist.reduce((a, h) => a + ((h.find(x => x.catId === c.catId) || {}).v || 0), 0) / monthsWithData;
+        if (avg >= 300 && c.v >= 1000 && c.v >= avg * 1.5 && !out.some(o => o.key === 'up-' + c.catId))
+          out.push({ key: 'usual-' + c.catId, level: 'warn', text: `${c.name} (${fmt(c.v)}) is higher than usual. You normally spend about ${fmt(avg)}. Consider reviewing it.` });
+      });
+    }
+    // 50/30/20 guide (wants only, gently)
+    if (r.hasIncome && r.split.wants != null && r.split.wants > tg.wants + 5 && r.nExp >= 5)
+      out.push({ key: 'wants', level: 'info', text: `Lifestyle spending is ${Math.round(r.split.wants)}% of your income. The 50/30/20 guide suggests about ${tg.wants}%. It is only a guide; every family is different.` });
+    // practical tip from the biggest lifestyle category
+    const topLife = r.cats.find(c => c.type === 'life');
+    if (topLife && topLife.v >= 1000 && r.nExp >= 5)
+      out.push({ key: 'tip-' + topLife.catId, level: 'info', text: `Your biggest lifestyle spend is ${topLife.name} (${fmt(topLife.v)}). Spending a quarter less there would keep about ${fmt(topLife.v / 4)} more each month.` });
+    return out;
+  }
+
   /* ---------- UPI notification reading (Android app only) ----------
      Turns the text of a payment-app notification into a suggestion for review.
      It never decides on its own that money was spent: unclear text is marked for the user to check,
@@ -458,7 +533,7 @@
     delete S.sampleTurnedOnLimits; S.sampleLoaded = false;
   }
 
-  Object.assign(L, { UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
+  Object.assign(L, { DEFAULT_TARGETS, targetsOf, pctOf, monthReport, lastMonths, insights, UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
     parseMoney, validDate, cat, catName, subName, person, personName, catUses, subUses, amt, incomeMonth, hasIncome,
     inMonth, inYear, sum, round2, totals, yearSeries, yearTotals, byCat, findTwin, isDoubleTap, LEVEL, limitLabel,
     effectiveLimits, limitStatus, checkAlerts, yearCSV, toCSV });

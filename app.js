@@ -52,7 +52,7 @@
   };
   const d0 = new Date();
   let savedPay = 'cash'; try { savedPay = localStorage.getItem('fil-app-v2:pay') || 'cash'; } catch (e) {}
-  const ui = { pay: savedPay, view: 'home', year: d0.getFullYear(), month: d0.getMonth(), draft: {}, dirty: false, xf: 'all', aMode: 'month', catTab: 'need', openCat: null, showAllLog: false, saving: false };
+  const ui = { repMode: 'month', pay: savedPay, view: 'home', year: d0.getFullYear(), month: d0.getMonth(), draft: {}, dirty: false, xf: 'all', aMode: 'month', catTab: 'need', openCat: null, showAllLog: false, saving: false };
   function freshDraft() { ui.draft = JSON.parse(JSON.stringify(S.records[mk(ui.year, ui.month)] || {})); ui.dirty = false; }
   freshDraft();
 
@@ -163,6 +163,7 @@
       ${card('Savings', t.save, t.nSave + ' entr' + (t.nSave === 1 ? 'y' : 'ies'), t.nSave > 0, 'var(--save)', cmp ? delta(cmp.save, true) : '')}
       ${rb.started ? `<div class="card"><span class="label">Total balance</span><span class="v ${rb.total > 0 ? 'pos' : rb.total < 0 ? 'neg' : ''}">${fmtINR(rb.total)}</span><span class="s">Incl. earlier months</span></div>` : ''}
     </section>
+    ${homeReport(y, m)}
     ${cmp && cmp.cats.length && t.nExp ? `<section class="panel"><div class="phead"><div><h2>Compared with ${cmp.partial ? '1–' + cmp.cutDay + ' ' : ''}${FULL[cmp.pm]}</h2><p>Biggest changes in spending${cmp.partial ? ' for the same days' : ''}</p></div></div>
       <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div>
       <p class="muted" style="margin:0;font-size:.84rem">Spending ${cmp.total.diff > 0 ? 'is up' : cmp.total.diff < 0 ? 'is down' : 'is the same'}${cmp.total.diff ? ' by ' + fmtINR(Math.abs(cmp.total.diff)) : ''} overall.</p></section>` : ''}
@@ -397,12 +398,71 @@
     if (!c.length) return `<div class="empty">Nothing recorded.</div>`;
     return `<table class="legend">${c.map(x => `<tr><td><span class="nm">${esc(x.name)}</span><div class="track" style="margin-top:4px"><i style="width:${x.v / c[0].v * 100}%;background:var(--${kind})"></i></div></td><td class="n">${fmtINR(x.v)}</td><td class="p">${pct(x.v, total)}%</td></tr>`).join('')}</table>`;
   }
+  /* ---------- monthly report + smart suggestions ---------- */
+  const pctTxt = v => v == null ? '–' : (Math.round(v * 10) / 10).toLocaleString('en-IN') + '%';
+  function chg(v, upIsGood, asPct) {
+    if (!v) return '<span class="muted">no change</span>';
+    const up = v > 0, good = up === upIsGood;
+    return `<span class="${good ? 'pos' : 'neg'}">${up ? '▲' : '▼'} ${asPct ? pctTxt(Math.abs(v)) : fmtINR(Math.abs(v))}</span>`;
+  }
+  function visibleTips(y, m) {
+    const hidden = ((S.hiddenTips || {})[mk(y, m)]) || [];
+    return L.insights(S, y, m, today()).filter(i => !hidden.includes(i.key));
+  }
+  function tipsBlock(tips, max) {
+    if (!tips.length) return `<div class="empty" style="padding:14px">No new suggestions right now. You’re on track.</div>`;
+    return `<ul class="tips">${tips.slice(0, max || 99).map(i => `<li class="tip ${i.level}"><span class="ti" aria-hidden="true">${i.level === 'good' ? '✓' : i.level === 'warn' ? '!' : 'i'}</span><span>${esc(i.text)}</span>${i.key === 'nodata' ? '' : `<button class="xbtn tipx" data-act="hideTip" data-k="${esc(i.key)}" aria-label="Hide this suggestion">×</button>`}</li>`).join('')}</ul>`;
+  }
+  function incomeVsExpenseChart(y, m) {
+    const s = L.lastMonths(S, y, m, 6), max = Math.max(...s.map(x => Math.max(x.income, x.total)));
+    if (!max) return '<div class="empty">No income or expenses in the last 6 months.</div>';
+    const W = 560, H = 220, Lp = 54, T = 12, B = 28, R = 8, { top, step } = scale(max), f = frame(W, H, Lp, T, B, R, top, step), cw = (W - Lp - R) / 6, bw = Math.min(26, cw * .3);
+    let b = '';
+    s.forEach((x, i) => {
+      const cx = Lp + i * cw + cw / 2, sel = x.y === y && x.m === m;
+      if (x.income > 0) { const yy = f.sy(x.income); b += `<rect x="${cx - bw - 1}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="var(--good)" rx="2"><title>${MONTHS[x.m]} income ${fmtINR(x.income)}</title></rect>`; }
+      if (x.total > 0) { const yy = f.sy(x.total); b += `<rect x="${cx + 1}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="var(--life)" rx="2"><title>${MONTHS[x.m]} expenses ${fmtINR(x.total)}</title></rect>`; }
+      b += `<text x="${cx}" y="${H - 8}" text-anchor="middle" fill="${sel ? 'var(--ink)' : 'var(--muted)'}" font-family="var(--mono)" font-size="11" font-weight="${sel ? 700 : 400}">${MONTHS[x.m]}</text>`;
+    });
+    return `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Income and expenses, last 6 months" style="min-width:420px">${f.svg}${b}</svg></div>`;
+  }
+  function splitBar(label, pct, target, color) {
+    const w = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+    return `<div class="split"><div class="r1"><span>${label}</span><span class="num">${pctTxt(pct)} <span class="muted">· guide ${target}%</span></span></div>
+      <div class="track" style="position:relative"><i style="width:${w}%;background:${color}"></i><b class="mark5" style="left:${Math.min(100, target)}%"></b></div></div>`;
+  }
+  function vMonthReport() {
+    const y = ui.year, m = ui.month, r = L.monthReport(S, y, m), tg = L.targetsOf(S), tips = visibleTips(y, m);
+    const tile = (l, v, sub, cls) => `<div class="card"><span class="label">${l}</span><span class="v ${cls || ''}">${v}</span><span class="s">${sub}</span></div>`;
+    if (r.empty) return `<section class="panel"><div class="empty"><b>No records for ${FULL[m]} ${y}</b>Add income and expenses for this month and the report appears here automatically.</div></section>`;
+    return `
+    <section class="cards" aria-label="${FULL[m]} summary">
+      ${tile('Income', fmtINR(r.income), r.hasIncome ? '' : 'Not recorded')}
+      ${tile('Expenses', fmtINR(r.expenses), r.nExp + ' record' + (r.nExp === 1 ? '' : 's') + (r.uns ? ' · ' + fmtINR(r.uns) + ' not sorted' : ''))}
+      ${tile('Left after expenses', fmtINR(r.left), r.hasIncome ? pctTxt(r.leftPct) + ' of income' : 'Add income to see %', r.left > 0 ? 'pos' : r.left < 0 ? 'neg' : '')}
+      ${tile('Recorded savings', fmtINR(r.saved), 'RD, FD and other savings')}
+    </section>
+    <section class="panel"><div class="phead"><div><h2>Compared with ${FULL[r.pm]}</h2><p>${r.prev.empty ? 'Nothing recorded in ' + FULL[r.pm] + ' to compare with.' : 'Change from last month'}</p></div></div>
+      ${r.prev.empty ? '' : `<table class="legend cmptab">
+        <tr><td>Income</td><td class="n">${fmtINR(r.prev.income)} → ${fmtINR(r.income)}</td><td class="n">${chg(r.change.income, true)}</td></tr>
+        <tr><td>Expenses</td><td class="n">${fmtINR(r.prev.expenses)} → ${fmtINR(r.expenses)}</td><td class="n">${chg(r.change.expenses, false)}</td></tr>
+        <tr><td>Left after expenses</td><td class="n">${fmtINR(r.prev.left)} → ${fmtINR(r.left)}</td><td class="n">${chg(r.change.left, true)}</td></tr></table>`}</section>
+    <section class="panel"><div class="phead"><div><h2>Where the money went</h2><p>${r.top ? 'Highest: <strong style="color:var(--ink)">' + esc(r.top.name) + '</strong> · ' + fmtINR(r.top.v) + ' (' + pctTxt(r.topPct) + ' of expenses)' : 'No expenses this month'}</p></div></div>
+      ${r.cats.length ? `<table class="legend">${r.cats.map(c => `<tr><td><span class="nm"><span class="tag ${c.type}">${KINDS[c.type]}</span> ${esc(c.name)}</span><div class="track" style="margin-top:4px"><i style="width:${c.v / r.cats[0].v * 100}%;background:var(--${c.type})"></i></div></td><td class="n">${fmtINR(c.v)}</td><td class="p">${Math.round(c.v / r.expenses * 100)}%</td></tr>`).join('')}</table>` : ''}</section>
+    <section class="panel"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div>${key([['Income', 'var(--good)'], ['Expenses', 'var(--life)']])}</div>${incomeVsExpenseChart(y, m)}</section>
+    <section class="panel"><div class="phead"><div><h2>50/30/20 guide</h2><p>A common guide: about ${tg.needs}% on needs, ${tg.wants}% on wants, ${tg.save}% kept. Every family is different, so treat it only as a reference.</p></div><button class="btn small" data-act="editTargets">Edit</button></div>
+      ${r.hasIncome ? splitBar('Necessary (needs)', r.split.needs, tg.needs, 'var(--need)') + splitBar('Lifestyle (wants)', r.split.wants, tg.wants, 'var(--life)') + splitBar('Kept (not spent)', r.split.save, tg.save, 'var(--good)') : '<div class="empty">Add income for this month to compare with the guide.</div>'}</section>
+    <section class="panel"><div class="phead"><div><h2>Suggestions</h2><p>Based on your ${FULL[m]} records</p></div></div>${tipsBlock(tips)}</section>`;
+  }
+
   function vReports() {
     const y = ui.year, s = L.yearSeries(S, y), t = L.yearTotals(S, y), ex = L.inYear(S.expenses, y), sv = L.inYear(S.savings, y);
     const any = ex.length || sv.length || t.monthsWithIncome;
     const tile = (l, v, sub, cls) => `<div class="card"><span class="label">${l}</span><span class="v ${cls || ''}">${fmtINR(v)}</span><span class="s">${sub}</span></div>`;
     const log = S.limitLog.filter(x => x.month.slice(0, 4) === String(y));
-    return header('Annual report', 'year') + `
+    const modeSeg = `<div class="seg noprint" role="tablist" aria-label="Report type"><button role="tab" class="${ui.repMode !== 'year' ? 'on' : ''}" data-act="repMode" data-v="month">Monthly</button><button role="tab" class="${ui.repMode === 'year' ? 'on' : ''}" data-act="repMode" data-v="year">Yearly</button></div>`;
+    if (ui.repMode !== 'year') return header('Monthly report', 'month') + modeSeg + vMonthReport();
+    return header('Annual report', 'year') + modeSeg + `
     <div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="csv">Export CSV</button><button class="btn" data-act="print">Print / Save PDF</button></div>
     <section class="cards" aria-label="Annual totals">
       ${tile('Total income', t.income, t.monthsWithIncome + ' months recorded')}
@@ -742,6 +802,13 @@
   const dateOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   const payeeKey = p => L.norm(p).toLowerCase();
   ui.nat = null;
+  function homeReport(y, m) {
+    const r = L.monthReport(S, y, m);
+    if (r.empty) return '';
+    const tips = visibleTips(y, m);
+    return `<section class="panel homerep"><div class="phead"><div><h2>${FULL[m]} report</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income (${fmtINR(r.left)})` : 'Add income to see how much you kept'}${r.top ? ` · Highest: <strong style="color:var(--ink)">${esc(r.top.name)}</strong> ${fmtINR(r.top.v)}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
+      <h3 class="tiph">Suggestions</h3>${tipsBlock(tips, 4)}${tips.length > 4 ? `<button class="linkbtn" data-act="openMonthReport">${tips.length - 4} more suggestion${tips.length - 4 === 1 ? '' : 's'}</button>` : ''}</section>`;
+  }
   function needsCatPanel() {
     const list = S.expenses.filter(e => e.type === 'uns').sort((a, b) => b.date.localeCompare(a.date) || (b.created || 0) - (a.created || 0));
     if (!list.length) return '';
@@ -1068,6 +1135,24 @@
       closeSheet(); render(); if (a) toast(`Future payments to ${a.payee} will go to ${a.to}.`);
     },
     forgetPayee(el) { const m = S.upi.payeeCat[el.dataset.k]; delete S.upi.payeeCat[el.dataset.k]; addLog(`Forgot remembered category for ${(m && m.name) || el.dataset.k}`); persist(); render(); toast('Forgotten. Next payment will ask for a category.'); },
+    repMode(el) { ui.repMode = el.dataset.v; render(); },
+    openMonthReport() { ui.repMode = 'month'; location.hash = 'reports'; },
+    hideTip(el) { const k = mk(ui.year, ui.month); S.hiddenTips = S.hiddenTips || {}; S.hiddenTips[k] = (S.hiddenTips[k] || []).concat(el.dataset.k); persist(); render(); toast('Hidden for this month'); },
+    editTargets() {
+      const t = L.targetsOf(S);
+      sheet(`<h3>Your targets</h3><p>Set your own split of income. They must add up to 100%.</p>
+        <div class="frow"><label class="field"><span>Needs %</span><input id="tg-n" inputmode="numeric" value="${t.needs}"></label><label class="field"><span>Wants %</span><input id="tg-w" inputmode="numeric" value="${t.wants}"></label></div>
+        <label class="field"><span>Keep (not spend) %</span><input id="tg-s" inputmode="numeric" value="${t.save}"></label>
+        <div class="err" id="tg-err" role="alert"></div>
+        <div class="mfoot"><button class="btn ghost" data-act="resetTargets">Use 50/30/20</button><span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveTargets">Save</button></div>`);
+    },
+    saveTargets() {
+      const v = ['#tg-n', '#tg-w', '#tg-s'].map(x => Number(q(x).value)), [n, w, sv] = v;
+      if (v.some(x => !Number.isFinite(x) || x < 0 || x > 100 || !Number.isInteger(x))) { q('#tg-err').textContent = 'Use whole numbers from 0 to 100.'; return; }
+      if (n + w + sv !== 100) { q('#tg-err').textContent = `They add up to ${n + w + sv}%. Make them add up to 100%.`; return; }
+      S.targets = { needs: n, wants: w, save: sv }; addLog(`Targets set to ${n}/${w}/${sv}`); persist(); closeSheet(); render(); toast('Targets saved');
+    },
+    resetTargets() { delete S.targets; addLog('Targets reset to 50/30/20'); persist(); closeSheet(); render(); toast('Back to 50/30/20'); },
     upiPauseOk() { S.upi.enabled = false; addLog('Automatic UPI turned off'); persist(); configureNative(); closeSheet(); render(); },
     toggleUpi(el) {
       S.upi.enabled = el.checked;
