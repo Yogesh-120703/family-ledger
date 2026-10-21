@@ -584,7 +584,9 @@
 
   /* ---------- transaction form (expenses + savings) ---------- */
   function catOptions(kind, sel) {
-    if (kind === 'uns') return '<option value="" selected disabled>Tap Necessary or Lifestyle first</option>';
+    // Payment without a type yet: show every category, grouped, so the box is never empty.
+    if (kind === 'uns') return '<option value="" selected disabled>Choose a category</option>'
+      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + S.cats.filter(c => c.kind === k && !c.archived).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>').join('');
     return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel)).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
@@ -606,7 +608,7 @@
     const modeVal = upiItem || opts.pasted ? 'UPI' : rec.mode != null ? rec.mode : (isNew ? (ui.pay === 'upi' ? 'UPI' : 'Cash') : '');
     const who = isSave ? rec.by : rec.paidBy, orphan = rec.id && !person(who);
     sheet(`<h3>${type === 'uns' ? 'Choose a category' : upiItem ? 'Save UPI payment' : opts.pasted ? 'Add pasted payment' : opts.recur ? 'Add ' + esc(rec.name) : isNew ? (isSave ? 'Add savings' : 'Add expense') : (isSave ? 'Edit savings' : 'Edit expense')}</h3>
-      ${type === 'uns' ? `<p>Added automatically from a UPI notification${rec.srcApp && L.UPI_SOURCES[rec.srcApp] ? ' (' + esc(L.UPI_SOURCES[rec.srcApp].name) + ')' : ''}. Tap <strong style="color:var(--ink)">Necessary</strong> or <strong style="color:var(--ink)">Lifestyle</strong>, choose the category, then Save. If this was not your payment, tap Delete.</p>` : ''}
+      ${type === 'uns' ? `<p>Added automatically from a UPI notification${rec.srcApp && L.UPI_SOURCES[rec.srcApp] ? ' (' + esc(L.UPI_SOURCES[rec.srcApp].name) + ')' : ''}. Choose the <strong style="color:var(--ink)">Category</strong> below, then tap Save. If this was not your payment, tap Delete.</p>` : ''}
       <label class="field"><span>Amount (₹)</span><input id="f-amt" class="big" inputmode="decimal" enterkeyhint="done" value="${rec.amount}" placeholder="0" autocomplete="off" autofocus></label>
       ${isSave ? '' : `<div class="seg" role="group" aria-label="Expense type"><button class="need ${type === 'need' ? 'on' : ''}" data-act="ftype" data-t="need">Necessary</button><button class="life ${type === 'life' ? 'on' : ''}" data-act="ftype" data-t="life">Lifestyle</button></div>`}
       <div class="frow"><label class="field"><span>Category</span><select id="f-cat">${catOptions(catKind, rec.catId)}</select></label>
@@ -1236,6 +1238,14 @@
   document.addEventListener('change', ev => {
     const el = ev.target;
     if (el.matches('input[type=checkbox][data-act]')) { const f = A[el.dataset.act]; if (f) f(el, ev); return; }
+    if (el.id === 'f-cat' && ui.form && ui.form.kind !== 'save') {
+      // choosing a category also sets Necessary / Lifestyle to match it
+      const c = L.cat(S, el.value);
+      if (c && (c.kind === 'need' || c.kind === 'life') && c.kind !== ui.form.type) {
+        ui.form.type = c.kind;
+        layer.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.t === c.kind));
+      }
+    }
     if (el.id === 'f-cat') { if (el.value === '__new') { q('#f-newcat').hidden = false; q('#f-newcat-in').focus(); } else { q('#f-newcat').hidden = true; q('#f-sub').innerHTML = subOptions(el.value, null); } q('#f-newsub').hidden = true; }
     if (el.id === 'upi-owner') { S.upi.owner = el.value; persist(); return; }
     if (el.id === 'f-rep') { const w = q('#f-varies-wrap'); if (w) w.hidden = el.value === '0'; }

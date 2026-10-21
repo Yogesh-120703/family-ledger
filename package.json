@@ -1,6 +1,6 @@
 {
   "name": "family-income-ledger",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "description": "Family Income Ledger — web app (PWA) and Android app (Capacitor) from the same code.",
   "scripts": {
