@@ -39,7 +39,8 @@ public class UpiNotificationListener extends NotificationListenerService {
                 // Real-time alert: only for what looks like money going out. Received, failed,
                 // refund, request and offer messages are still passed to the app, but never alerted.
                 UpiText.Result r = UpiText.read(title, body);
-                if (UpiText.DEBIT.equals(r.kind) || (UpiText.UNKNOWN.equals(r.kind) && r.amount != null)) {
+                boolean trusted = UpiText.UPI_APPS.contains(pkg) || UpiText.isBankSender(title);
+                if (trusted && (UpiText.DEBIT.equals(r.kind) || (UpiText.UNKNOWN.equals(r.kind) && r.amount != null))) {
                     UpiAlerter.onPayment(this, pkg, r, sbn.getPostTime());
                 }
             }

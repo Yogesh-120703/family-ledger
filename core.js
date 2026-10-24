@@ -458,6 +458,17 @@
       .replace(/[^a-z0-9@]+/g, ' ').trim();
     return t.length >= 8 ? fnv(t) : null;
   }
+  /* Payment apps (GPay, PhonePe, Paytm, BHIM, CRED) are trusted. Anything else is an SMS app, where a message only counts
+     if it comes from a bank sender (AX-SBIUPI, VM-HDFCBK, "State Bank of India"), never from a phone number or a contact. */
+  const UPI_APP_SOURCES = ['gpay', 'phonepe', 'paytm', 'bhim', 'cred'];
+  const BANK_WORDS = /\b(bank|sbi|hdfc|icici|axis|kotak|canara|iob|pnb|baroda|bob|union|indusind|idfc|federal|yesbank|rbl|bandhan|equitas|ujjivan|karur|kvb|tmb|citi|cub|uco|boi|upi|payments)\b/i;
+  function isBankSender(title) {
+    const t = String(title || '').trim();
+    if (!t || /^[+0-9\s()-]+$/.test(t)) return false;                    // empty, or a phone number
+    if (/^[a-z]{2}-[a-z0-9]{2,9}(-[stg])?$/i.test(t)) return true;         // TRAI sender code (-P adverts are ignored earlier)
+    if (/^[A-Z0-9]{6}$/.test(t) && /[A-Z]/.test(t)) return true;           // bare 6-letter sender code
+    return BANK_WORDS.test(t);                                            // bank name shown by apps like Truecaller
+  }
   function upiKey(raw, parsed) { return parsed.ref ? 'ref:' + parsed.ref : 'h:' + fnv(raw.pkg + '|' + (raw.title || '') + '|' + (raw.text || '')); }
 
   /* ---------- sample data (opt-in, tagged so it can be removed cleanly) ---------- */
@@ -560,7 +571,7 @@
     delete S.sampleTurnedOnLimits; S.sampleLoaded = false;
   }
 
-  Object.assign(L, { DEFAULT_TARGETS, targetsOf, pctOf, monthReport, lastMonths, insights, UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiShape, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
+  Object.assign(L, { DEFAULT_TARGETS, targetsOf, pctOf, monthReport, lastMonths, insights, UPI_SOURCES, PAY_MODES, sourceOfPkg, upiPackages, parseUpi, upiShape, isBankSender, UPI_APP_SOURCES, upiKey, defaultUpi, loadSample, removeSample, FREQ, monthIndex, keyFromIndex, daysBetween, addDays, isDueIn, dueDate, recurStatus, dueList, nextDue, firstMonthKey, runningBalance, compareMonths, MONTHS, FULL, KINDS, COLORS, DEFAULT_CATS, uid, pad, mk, norm, same, fresh, migrate, ensureCat,
     parseMoney, validDate, cat, catName, subName, person, personName, catUses, subUses, amt, incomeMonth, hasIncome,
     inMonth, inYear, sum, round2, totals, yearSeries, yearTotals, byCat, findTwin, isDoubleTap, LEVEL, limitLabel,
     effectiveLimits, limitStatus, checkAlerts, yearCSV, toCSV });

@@ -907,6 +907,11 @@
       const src = L.sourceOfPkg(raw.pkg) || ((S.upi.extraPkgs || []).includes(raw.pkg) ? 'other' : null); if (!src || !S.upi.sources[src]) return;
       const p = L.parseUpi(raw.title, raw.text), key = L.upiKey(raw, p);
       if (p.kind === 'ignore') return;
+      // SMS that looks like a payment but comes from a person's number or contact (not a bank): never added
+      if (!L.UPI_APP_SOURCES.includes(src) && !L.isBankSender(raw.title)) {
+        if (!S.upi.seen[key]) { S.upi.seen[key] = { d: 'not-bank', t: Date.now() }; addLog(`Ignored a payment-like SMS from ${String(raw.title || 'an unknown sender').slice(0, 40)}: it did not come from a bank`); }
+        return;
+      }
       const sameText = x => x.src === src && (x.title || '') === (raw.title || '') && (x.text || '') === (raw.text || '');
       const holder = S.upi.queue.find(x => x.key === key || (x.extra || []).some(y => y.key === key));
       if (holder && (sameText(holder) || (holder.extra || []).some(sameText))) return; // exact repeat

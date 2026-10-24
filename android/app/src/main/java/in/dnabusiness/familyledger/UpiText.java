@@ -43,6 +43,23 @@ final class UpiText {
     private static final Pattern VPA = Pattern.compile("\\bto\\s+(?:vpa\\s+)?([A-Za-z0-9._-]+@[A-Za-z0-9.-]*[A-Za-z0-9])", CI);
     private static final Pattern PAYEE_BAD = Pattern.compile("^(a/c|ac|account|your)\\b", CI);
 
+    private static final Pattern PHONE = Pattern.compile("^[+0-9\\s()-]+$");
+    private static final Pattern SENDER_CODE = Pattern.compile("^[a-z]{2}-[a-z0-9]{2,9}(-[stg])?$", CI);
+    private static final Pattern SENDER_BARE = Pattern.compile("^[A-Z0-9]{6}$");
+    private static final Pattern HAS_LETTER = Pattern.compile("[A-Z]");
+    private static final Pattern BANK_WORDS = Pattern.compile("\\b(bank|sbi|hdfc|icici|axis|kotak|canara|iob|pnb|baroda|bob|union|indusind|idfc|federal|yesbank|rbl|bandhan|equitas|ujjivan|karur|kvb|tmb|citi|cub|uco|boi|upi|payments)\\b", CI);
+    static final java.util.Set<String> UPI_APPS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "com.google.android.apps.nbu.paisa.user", "com.phonepe.app", "net.one97.paytm", "in.org.npci.upiapp", "com.dreamplug.androidapp"));
+
+    /** Mirrors isBankSender() in core.js: SMS only counts when it comes from a bank, not a phone number or contact. */
+    static boolean isBankSender(String title) {
+        String t = title == null ? "" : title.trim();
+        if (t.isEmpty() || PHONE.matcher(t).matches()) return false;
+        if (SENDER_CODE.matcher(t).matches()) return true;
+        if (SENDER_BARE.matcher(t).matches() && HAS_LETTER.matcher(t).find()) return true;
+        return BANK_WORDS.matcher(t).find();
+    }
+
     private UpiText() {}
 
     static Result read(String title, String text) {
