@@ -23,7 +23,8 @@ final class UpiText {
 
     private static final int CI = Pattern.CASE_INSENSITIVE;
     private static final Pattern OTP = Pattern.compile("\\b(otp|one[- ]time password|verification code)\\b", CI);
-    private static final Pattern PROMO = Pattern.compile("\\b(offer|win|won|get up to|upto|up to ₹|off on|discount|rewards?|scratch card|coupon|deal|voucher|earn)\\b", CI);
+    private static final Pattern PROMO = Pattern.compile("\\b(offer|win|won|get up to|upto|up to ₹|off on|discount|rewards?|scratch card|coupon|deal|voucher|earn|loan|pre[- ]?approved|eligible|apply|click|limit|insta|instant|disburs\\w*|interest|rates?|t&c|tak|lakh|lac|kyc|bonus|free|sale|cashback)\\b", CI);
+    private static final Pattern PROMO_SENDER = Pattern.compile("^[a-z]{2}-[a-z0-9]{3,9}-p$", CI);
     private static final Pattern FAILED = Pattern.compile("\\b(failed|failure|declined|unsuccessful|not successful|could not be (completed|processed)|reversed|cancell?ed|timed out)\\b", CI);
     private static final Pattern REFUND = Pattern.compile("\\b(refund(ed)?|cashback|reversal)\\b", CI);
     private static final Pattern REQUEST = Pattern.compile("\\b(requested|requesting|is requesting|collect request|payment request|request(ed)? (money|payment)|bill is due|is due|due on|reminder|pay now|pay your)\\b", CI);
@@ -47,7 +48,7 @@ final class UpiText {
     static Result read(String title, String text) {
         String t = ((title == null ? "" : title) + " . " + (text == null ? "" : text)).replaceAll("\\s+", " ").trim();
         Result r = new Result();
-        if (OTP.matcher(t).find()) { r.kind = IGNORE; return r; }
+        if (OTP.matcher(t).find() || PROMO_SENDER.matcher(title == null ? "" : title.trim()).find()) { r.kind = IGNORE; return r; }
 
         List<Double> amounts = new ArrayList<>();
         Matcher m = AMOUNT.matcher(t);
@@ -87,6 +88,7 @@ final class UpiText {
         else if (isCredit) r.kind = SKIP;
         else r.kind = UNKNOWN;
         if (UNKNOWN.equals(r.kind) && amounts.isEmpty()) r.kind = IGNORE;
+        if (UNKNOWN.equals(r.kind) && r.ref == null && !UPI_WORD.matcher(t).find()) r.kind = IGNORE;
         return r;
     }
 }

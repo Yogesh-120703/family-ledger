@@ -31,6 +31,10 @@ check('OTP never kept', '', '123456 is your OTP for payment of ₹500', { kind: 
 check('promotion', '', 'Get up to ₹100 off on your next recharge', { kind: 'ignore' });
 check('no money mentioned', 'Google Pay', 'Your weekly summary is ready', { kind: 'ignore' });
 console.log('Unclear — shown with a warning');
-check('debit and credit words together', '', '₹400 debited and ₹400 credited', { kind: 'unknown' });
+check('debit and credit words, no UPI detail → not added', '', '₹400 debited and ₹400 credited', { kind: 'ignore' });
+check('debit and credit words with UPI ref → added', '', 'Rs 400 debited from A/c XX1 and credited to A/c XX2. UPI Ref 412345678901', { kind: 'unknown', amount: 400 });
+check('loan advert (JX-...-P sender) → ignored', 'JX-ABCDBF-P', 'Rs.584,250 tak ka loan pre-approved hai via Aditya Birla Capital Digital. Rates apply', { kind: 'ignore' });
+check('loan advert without sender → ignored', '', 'Rs.584,250 tak ka loan pre-approved hai via Aditya Birla Capital Digital', { kind: 'ignore' });
+check('credit card limit message → ignored', '', 'Your Rs.1,20,000 credit card limit is ready', { kind: 'ignore' });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

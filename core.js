@@ -393,7 +393,9 @@
 
   const RX = {
     otp: /\b(otp|one[- ]time password|verification code)\b/i,
-    promo: /\b(offer|win|won|get up to|upto|up to ₹|off on|discount|rewards?|scratch card|coupon|deal|voucher|earn)\b/i,
+    promo: /\b(offer|win|won|get up to|upto|up to ₹|off on|discount|rewards?|scratch card|coupon|deal|voucher|earn|loan|pre[- ]?approved|eligible|apply|click|limit|insta|instant|disburs\w*|interest|rates?|t&c|tak|lakh|lac|kyc|bonus|free|sale|cashback)\b/i,
+    // TRAI sender codes: "JX-ABCDBF-P" ends in -P for promotional SMS (ads), never a payment
+    promoSender: /^[a-z]{2}-[a-z0-9]{3,9}-p$/i,
     failed: /\b(failed|failure|declined|unsuccessful|not successful|could not be (completed|processed)|reversed|cancell?ed|timed out)\b/i,
     refund: /\b(refund(ed)?|cashback|reversal)\b/i,
     request: /\b(requested|requesting|is requesting|collect request|payment request|request(ed)? (money|payment)|bill is due|is due|due on|reminder|pay now|pay your)\b/i,
@@ -406,7 +408,7 @@
   function parseUpi(title, text) {
     const t = ((title || '') + ' . ' + (text || '')).replace(/\s+/g, ' ').trim();
     const out = { kind: 'unknown', amount: null, payee: null, ref: null, issues: [] };
-    if (RX.otp.test(t)) { out.kind = 'ignore'; return out; }
+    if (RX.otp.test(t) || RX.promoSender.test((title || '').trim())) { out.kind = 'ignore'; return out; }
     // amount: every ₹/Rs/INR figure that is not an account balance or limit
     const amounts = [], re = /(?:₹|\brs\.?|\binr)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/gi; let mt;
     while ((mt = re.exec(t))) {
@@ -435,6 +437,8 @@
       out.kind = d && c ? 'unknown' : d ? 'debit' : c ? 'credit' : 'unknown';
     }
     if (out.kind === 'unknown' && out.amount == null && !out.issues.includes('amount-ambiguous')) out.kind = 'ignore';
+    // a message without a clear payment word counts only if it is clearly about a UPI payment (a UPI word or reference)
+    if (out.kind === 'unknown' && !out.ref && !/\bupi\b/i.test(t)) out.kind = 'ignore';
     return out;
   }
   function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); }
