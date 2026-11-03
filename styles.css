@@ -1,15 +1,31 @@
-/* Family Income Ledger — mobile app shell. Dark theme carried over from the web version. */
+/* Family Ledger — green and white. Light by default; dark when the phone is in dark mode. */
 :root{
-  --bg:#0E141B; --surface:#161F29; --raised:#1C2733; --sunk:#111A23; --ink:#E7ECF1; --muted:#95A3B2; --line:#283543;
-  --accent:#F2A93B; --accent-ink:#1A1206; --accent-soft:#33260F;
-  --need:#5C9EEA; --life:#F09A4E; --save:#3FC1A5; --uns:#B9A3FF; --good:#4CC28A; --bad:#EF6F67; --warn:#E8C04A;
+  --bg:#F4F8F5; --surface:#FFFFFF; --raised:#EEF4F0; --sunk:#E7EFEA; --ink:#13241B; --muted:#5B6E63; --line:#D9E4DD;
+  --accent:#1E7A55; --accent-ink:#FFFFFF; --accent-soft:#DFF1E7;
+  --need:#2F6FD0; --life:#DD7420; --save:#13916A; --uns:#7B5BE6; --good:#1C8A4E; --bad:#D2443F; --warn:#B98300;
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Hanken Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
   --r:12px; --navh:64px;
   --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
-  color-scheme:dark;
+  color-scheme:light;
 }
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0C1511; --surface:#13201A; --raised:#1A2A22; --sunk:#0F1A15; --ink:#E5EFE9; --muted:#91A79A; --line:#24372D;
+    --accent:#3DC58B; --accent-ink:#04140C; --accent-soft:#143325;
+    --need:#5C9EEA; --life:#F09A4E; --save:#3FC1A5; --uns:#B9A3FF; --good:#4CC28A; --bad:#EF6F67; --warn:#E8C04A;
+    color-scheme:dark;
+  }
+}
+/* category picture next to each payment */
+.cicon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:1.2rem;line-height:1;font-style:normal;background:color-mix(in srgb,var(--need) 14%,transparent)}
+.cicon.life{background:color-mix(in srgb,var(--life) 16%,transparent)}
+.cicon.save{background:color-mix(in srgb,var(--save) 16%,transparent)}
+.cicon.uns{background:color-mix(in srgb,var(--uns) 16%,transparent)}
+/* month picture */
+.mpicwrap{display:grid;gap:8px;justify-items:center}
+.mpic{width:100%;max-width:420px;height:auto;border-radius:16px;border:1px solid var(--line);aspect-ratio:4/5}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{background:var(--bg)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;overscroll-behavior-y:contain}
@@ -79,6 +95,7 @@ button:disabled{opacity:.45;cursor:default}
 
 /* Cash / UPI tabs and automatic UPI setup */
 .paytabs button{min-height:48px;font-size:1rem}
+.seg.paytabs button.on{background:var(--accent);color:var(--accent-ink)}
 .upisetup{border-color:var(--accent)}
 .upion{border-color:var(--good)}
 .steps{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
@@ -158,7 +175,7 @@ button:disabled{opacity:.45;cursor:default}
 /* transaction list */
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
 .chip{flex:none;min-height:38px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 14px;font-size:.86rem;color:var(--muted);font-weight:600}
-.chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .dayhead{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;padding:12px 0 4px;border-bottom:1px solid var(--line)}
 .tx{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;min-height:60px;padding:8px 2px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;width:100%}
 .tx:active{background:var(--raised)}
@@ -186,7 +203,7 @@ button:disabled{opacity:.45;cursor:default}
 .money:focus-within{border-color:var(--accent)}
 .erow.none .money{opacity:.4}
 .toggle{min-height:44px;border:1px solid var(--line);border-radius:999px;background:transparent;padding:6px 12px;font-size:.8rem;color:var(--muted);white-space:nowrap;font-weight:600}
-.toggle.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.toggle.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .xbtn{width:44px;height:44px;border:1px solid var(--line);background:transparent;border-radius:10px;color:var(--muted);font-size:1.15rem}
 .note{border:1px solid var(--line);background:transparent;border-radius:10px;padding:10px;width:100%;min-width:0;font-size:.9rem;min-height:44px}
 .entryfoot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:12px}
