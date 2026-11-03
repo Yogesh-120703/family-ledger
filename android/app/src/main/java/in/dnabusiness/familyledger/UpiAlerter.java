@@ -12,7 +12,16 @@ import android.os.Looper;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Typeface;
+
+import java.text.DateFormat;
 import java.text.NumberFormat;
+import java.util.Date;
 import java.util.Locale;
 
 /**
@@ -93,20 +102,65 @@ final class UpiAlerter {
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_upi)
+            .setColor(GREEN)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .addAction(0, "Open", pi);
+        // Picture card (amount, who was paid, time) shown when the alert is expanded; plain text if drawing fails.
+        Bitmap card = null;
+        try { if (amount != null) card = drawCard(amount, g.payee, sourceName(g.pkg), g.firstAt, added); } catch (Throwable ignored) { }
+        if (card != null) b.setStyle(new NotificationCompat.BigPictureStyle().bigPicture(card).setSummaryText(body));
+        else b.setStyle(new NotificationCompat.BigTextStyle().bigText(body));
         try {
             nm.notify(g.notifId, b.build());
         } catch (SecurityException ignored) {
             // alert permission was turned off; the payment still waits on the review screen
         }
+    }
+
+    static final int GREEN = 0xFF1E7A55;
+
+    private static String sourceName(String pkg) {
+        if (pkg == null) return "Bank SMS";
+        switch (pkg) {
+            case "com.google.android.apps.nbu.paisa.user": return "Google Pay";
+            case "com.phonepe.app": return "PhonePe";
+            case "net.one97.paytm": return "Paytm";
+            case "in.org.npci.upiapp": return "BHIM";
+            case "com.dreamplug.androidapp": return "CRED";
+            default: return "Bank SMS";
+        }
+    }
+
+    /** Draws the payment picture: ₹ badge, who was paid, the amount in large type, time and source. */
+    static Bitmap drawCard(String amount, String payee, String source, long at, boolean added) {
+        int W = 1080, H = 520;
+        Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bmp);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Typeface bold = Typeface.create(Typeface.DEFAULT, Typeface.BOLD), reg = Typeface.DEFAULT;
+        p.setColor(Color.WHITE); c.drawRoundRect(new RectF(0, 0, W, H), 40, 40, p);
+        p.setColor(GREEN); c.drawRect(0, 0, 22, H, p);
+        p.setColor(0x221E7A55); c.drawRoundRect(new RectF(70, 70, 240, 240), 40, 40, p);
+        p.setColor(GREEN); p.setTypeface(bold); p.setTextSize(110); p.setTextAlign(Paint.Align.CENTER); c.drawText("₹", 155, 195, p);
+        p.setTextAlign(Paint.Align.LEFT);
+        p.setColor(0xFF5B6E63); p.setTypeface(reg); p.setTextSize(38); c.drawText("Paid to", 280, 110, p);
+        String who = payee == null || payee.isEmpty() ? "UPI payment" : payee;
+        if (who.length() > 22) who = who.substring(0, 21) + "…";
+        p.setColor(0xFF13241B); p.setTypeface(bold); p.setTextSize(58); c.drawText(who, 280, 180, p);
+        p.setColor(GREEN); p.setTypeface(reg); p.setTextSize(40); c.drawText("Family Ledger", 280, 238, p);
+        p.setColor(0xFF13241B); p.setTypeface(bold); p.setTextSize(110); c.drawText(amount, 70, 400, p);
+        p.setColor(0xFF5B6E63); p.setTypeface(reg); p.setTextSize(34);
+        c.drawText(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(at)) + " · " + source, 70, 460, p);
+        p.setColor(GREEN); c.drawRoundRect(new RectF(W - 330, 360, W - 70, 430), 35, 35, p);
+        p.setColor(Color.WHITE); p.setTypeface(bold); p.setTextSize(34); p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(added ? "Added ✓" : "Check it", W - 200, 407, p);
+        return bmp;
     }
 
     static void ensureChannel(Context ctx) {

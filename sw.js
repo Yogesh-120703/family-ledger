@@ -1,5 +1,5 @@
 /* Family Income Ledger — offline support. Bump VERSION when you deploy changes. */
-const VERSION = 'fil-v23';
+const VERSION = 'fil-v24';
 const SHELL = ['./', './index.html', './styles.css', './core.js', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
 

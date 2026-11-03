@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Small white icon for Family Ledger's payment alerts (status bar). -->
+<!-- Small white ₹ for Family Ledger's alerts (status bar). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M4,14h3v6H4z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M10.5,10h3v10h-3z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M17,5h3v15h-3z" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M3,21h18v1.5H3z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M18.48 7.13H15.84C15.7 6.31 15.42 5.59 14.99 4.96L17.81 4.97L18.48 2.5H6.24L5.52 5.36H9.02C10.82 5.36 11.87 6.03 12.3 7.13H6.19L5.52 9.58H12.39C11.99 10.87 10.85 11.63 9.02 11.63H5.78L5.81 13.68L12.31 21.5H16.14V21.33L10.27 14.13L10.39 14.1C13.77 13.7 15.44 12.03 15.83 9.58H17.81Z" />
 </vector>

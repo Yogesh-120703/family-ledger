@@ -35,7 +35,7 @@
   }
   /* ---------- online copy for Claude (off until the person connects their own website) ---------- */
   var cloudTimer = null;
-  const APP_VERSION = '1.9';
+  const APP_VERSION = '1.10';
   function scheduleCloud() { try { if (!prefs.cloud || !prefs.cloud.on) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudSend(false), 5000); } catch (e) { /* settings not loaded yet */ } }
   // What goes online: the ledger only. Payment-reading internals and the activity log stay on the phone.
   function cloudSnapshot() { const d = JSON.parse(JSON.stringify(S)); d.upi = { payeeCat: (S.upi && S.upi.payeeCat) || {} }; delete d.log; delete d.limitLog; return d; }
