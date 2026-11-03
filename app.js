@@ -86,6 +86,63 @@
     const fab = v === 'home' || v === 'expenses' ? `<button class="fab" data-act="newExp"><span>+</span>Expense</button>`
       : v === 'savings' ? `<button class="fab" data-act="newSave"><span>+</span>Savings</button>` : '';
     app.innerHTML = html + fab;
+    app.querySelectorAll('canvas.mpic').forEach(c => { try { drawMonthCard(c, L.monthReport(S, +c.dataset.y, +c.dataset.m)); } catch (e) {} });
+  }
+
+  /* ---------- pictures: the month at a glance, and a payment card (also used for the phone alert) ---------- */
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  const inr = v => '₹' + Math.round(Math.abs(v)).toLocaleString('en-IN');
+  function drawMonthCard(cv, r) {
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, acc = cssVar('--accent') || '#1E7A55';
+    const F = s => `${s}px "Hanken Grotesk", system-ui, sans-serif`, D = s => `700 ${s}px "Bricolage Grotesque", system-ui, sans-serif`;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = acc; rr(g, 0, 0, W, H, 48); g.fill();
+    g.fillStyle = '#FFFFFF'; rr(g, 40, 300, W - 80, H - 340, 36); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.8)'; g.font = F(38); g.fillText('Family Ledger', 70, 100);
+    g.fillStyle = '#FFFFFF'; g.font = D(84); g.fillText(FULL[r.m] + ' ' + r.y, 70, 195);
+    g.font = F(40); g.fillStyle = 'rgba(255,255,255,.9)';
+    g.fillText(r.hasIncome ? `Kept ${r.leftPct == null ? '—' : r.leftPct + '%'} of income` : 'Add income to see what you kept', 70, 258);
+    // three figures
+    const cols = [['Income', r.income, '#1E7A55'], ['Spent', r.expenses, '#D2443F'], ['Left', r.left, r.left >= 0 ? '#1E7A55' : '#D2443F']];
+    cols.forEach(([lab, v, col], i) => {
+      const x = 80 + i * 320;
+      g.fillStyle = '#5B6E63'; g.font = F(34); g.fillText(lab, x, 380);
+      g.fillStyle = col; g.font = D(60); g.fillText((v < 0 ? '−' : '') + inr(v), x, 450);
+    });
+    g.fillStyle = '#E3ECE6'; g.fillRect(80, 500, W - 160, 3);
+    // where the money went: top 5 categories with pictures and bars
+    g.fillStyle = '#13241B'; g.font = D(44); g.fillText('Where the money went', 80, 580);
+    const top = r.cats.slice(0, 5), max = top.length ? top[0].v : 1;
+    if (!top.length) { g.fillStyle = '#5B6E63'; g.font = F(38); g.fillText('No expenses this month yet.', 80, 660); }
+    top.forEach((c, i) => {
+      const y = 650 + i * 120, col = c.type === 'life' ? '#DD7420' : c.type === 'uns' ? '#7B5BE6' : '#2F6FD0';
+      g.fillStyle = col + '22'; rr(g, 80, y - 10, 84, 84, 22); g.fill();
+      g.font = '48px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(catIcon(c.catId, c.type), 122, y + 50); g.textAlign = 'left';
+      g.fillStyle = '#13241B'; g.font = F(38); g.fillText(c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name, 190, y + 22);
+      g.fillStyle = '#E7EFEA'; rr(g, 190, y + 40, 560, 20, 10); g.fill();
+      g.fillStyle = col; rr(g, 190, y + 40, Math.max(20, 560 * c.v / max), 20, 10); g.fill();
+      g.fillStyle = '#13241B'; g.font = D(40); g.textAlign = 'right'; g.fillText(inr(c.v), W - 80, y + 60); g.textAlign = 'left';
+    });
+    g.fillStyle = '#5B6E63'; g.font = F(30); g.fillText(`${r.nExp} expense${r.nExp === 1 ? '' : 's'} · Necessary ${inr(r.need)} · Lifestyle ${inr(r.life)}`, 80, H - 80);
+  }
+  /* Payment card: the picture shown inside the phone alert when a payment is added. */
+  function drawPayCard(cv, p) {
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, acc = cssVar('--accent') || '#1E7A55';
+    const F = s => `${s}px "Hanken Grotesk", system-ui, sans-serif`, D = s => `700 ${s}px "Bricolage Grotesque", system-ui, sans-serif`;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#FFFFFF'; rr(g, 0, 0, W, H, 40); g.fill();
+    g.fillStyle = acc; rr(g, 0, 0, 22, H, 0); g.fill();
+    const col = p.type === 'life' ? '#DD7420' : p.type === 'uns' ? '#7B5BE6' : p.type === 'save' ? '#13916A' : '#2F6FD0';
+    g.fillStyle = col + '22'; rr(g, 70, 70, 170, 170, 40); g.fill();
+    g.font = '96px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(p.icon, 155, 190); g.textAlign = 'left';
+    g.fillStyle = '#5B6E63'; g.font = F(38); g.fillText('Paid to', 280, 110);
+    g.fillStyle = '#13241B'; g.font = D(58); g.fillText(p.payee.length > 22 ? p.payee.slice(0, 21) + '…' : p.payee, 280, 180);
+    g.fillStyle = p.type === 'uns' ? '#7B5BE6' : '#1E7A55'; g.font = F(40); g.fillText(p.category, 280, 238);
+    g.fillStyle = '#13241B'; g.font = D(110); g.fillText(inr(p.amount), 70, 400);
+    g.fillStyle = '#5B6E63'; g.font = F(34); g.fillText(p.when + ' · ' + p.source, 70, 460);
+    g.fillStyle = acc; rr(g, W - 330, 360, 260, 70, 35); g.fill();
+    g.fillStyle = '#FFFFFF'; g.font = D(34); g.textAlign = 'center'; g.fillText(p.type === 'uns' ? 'Set category' : 'Added ✓', W - 200, 407); g.textAlign = 'left';
   }
 
   /* ---------- routing (Android back button moves between screens) ---------- */
@@ -107,11 +164,23 @@
   window.addEventListener('popstate', () => { if (layer.innerHTML) closeSheet(); });
 
   /* ---------- HOME ---------- */
+  /* A small picture for every category, so a payment can be recognised at a glance. */
+  const CAT_ICONS = [[/rent|house/i,'🏠'],[/grocer/i,'🛒'],[/electric/i,'⚡'],[/water/i,'💧'],[/gas/i,'🔥'],[/milk|dairy/i,'🥛'],[/internet|wi-?fi/i,'📶'],
+    [/mobile|recharge/i,'📱'],[/transport|petrol|fuel|bus|auto/i,'🚌'],[/education|school|college|fees/i,'🎓'],[/medical|hospital|medicine|health/i,'💊'],
+    [/loan|emi/i,'🏦'],[/household/i,'🧺'],[/insurance/i,'🛡️'],[/domestic|maid|help/i,'🧹'],[/cinema|theatre|movie/i,'🎬'],[/restaurant|hotel/i,'🍽️'],
+    [/online food|swiggy|zomato/i,'🛵'],[/shopping/i,'🛍️'],[/entertain/i,'🎮'],[/trip|travel/i,'✈️'],[/subscri/i,'📺'],[/snack|drink|tea|coffee/i,'☕'],
+    [/family|sister|brother|amma|appa|mother|father|wife|husband|son|daughter/i,'👨‍👩‍👧'],[/friend/i,'🤝'],[/gift/i,'🎁'],[/temple|pooja|donation/i,'🛕'],
+    [/fixed deposit|fd\b|recurring|rd\b/i,'🏛️'],[/emergency/i,'🆘'],[/saving|future|bank/i,'💰'],[/other/i,'📦']];
+  function catIcon(catId, type) {
+    if (type === 'uns' || !catId) return '❓';
+    const n = L.catName(S, catId), hit = CAT_ICONS.find(([rx]) => rx.test(n));
+    return hit ? hit[1] : type === 'life' ? '✨' : type === 'save' ? '💰' : '📌';
+  }
   function txRow(e, kind) {
     const isSave = kind === 'save';
     const c = L.catName(S, e.catId), sub = L.subName(S, e.catId, e.subId);
     const who = L.personName(S, isSave ? e.by : e.paidBy, isSave ? e.byName : e.paidName);
-    return `<button class="tx" data-act="${isSave ? 'editSave' : 'editExp'}" data-id="${e.id}"><i class="mark ${isSave ? 'save' : e.type}" aria-hidden="true"></i>
+    return `<button class="tx" data-act="${isSave ? 'editSave' : 'editExp'}" data-id="${e.id}"><i class="cicon ${isSave ? 'save' : e.type}" aria-hidden="true">${catIcon(e.catId, isSave ? 'save' : e.type)}</i>
       <span class="t"><strong>${e.catAuto ? '<span class="muted" title="Category remembered">⟳</span> ' : ''}${esc(e.name)}</strong><span>${esc(c)}${sub ? ' › ' + esc(sub) : ''} · ${esc(who)} · ${fmtDate(e.date)}${e.mode ? ' · ' + esc(e.mode) : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>
       <span class="a">${fmtINR(e.amount)}</span></button>`;
   }
@@ -590,8 +659,8 @@
   function catOptions(kind, sel) {
     // Payment without a type yet: show every category, grouped, so the box is never empty.
     if (kind === 'uns') return '<option value="" selected disabled>Choose a category</option>'
-      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + otherLast(S.cats.filter(c => c.kind === k && !c.archived)).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>').join('') + '<option value="__new">＋ New category (like Family)…</option>';
-    return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + otherLast(S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel))).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
+      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + otherLast(S.cats.filter(c => c.kind === k && !c.archived)).map(c => `<option value="${c.id}">${catIcon(c.id, k)} ${esc(c.name)}</option>`).join('') + '</optgroup>').join('') + '<option value="__new">＋ New category (like Family)…</option>';
+    return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + otherLast(S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel))).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${catIcon(c.id, kind)} ${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
     const c = L.cat(S, catId); if (!c) return '<option value="">Choose a category first</option>';
@@ -824,6 +893,7 @@
     if (r.empty) return '';
     const tips = visibleTips(y, m);
     return `<section class="panel homerep"><div class="phead"><div><h2>${FULL[m]} report</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income (${fmtINR(r.left)})` : 'Add income to see how much you kept'}${r.top ? ` · Highest: <strong style="color:var(--ink)">${esc(r.top.name)}</strong> ${fmtINR(r.top.v)}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
+      <div class="mpicwrap"><canvas class="mpic" data-y="${y}" data-m="${m}" width="1080" height="1350" role="img" aria-label="${FULL[m]} at a glance"></canvas></div>
       <h3 class="tiph">Suggestions</h3>${tipsBlock(tips, 4)}${tips.length > 4 ? `<button class="linkbtn" data-act="openMonthReport">${tips.length - 4} more suggestion${tips.length - 4 === 1 ? '' : 's'}</button>` : ''}</section>`;
   }
   function needsCatPanel() {
@@ -895,7 +965,8 @@
     try { await Native.acknowledge({ ids: items.map(x => x.id) }); } catch (e) {}
     if (autoAdded) {
       render();
-      toast(`${autoAdded} UPI payment${autoAdded === 1 ? '' : 's'} added. Choose ${autoAdded === 1 ? 'a category' : 'categories'} in Expenses → UPI.`);
+      const fresh = S.expenses.filter(e => e.auto && Date.now() - e.created < 60000), need = fresh.filter(e => e.type === 'uns').length;
+      toast(need ? `${autoAdded} UPI payment${autoAdded === 1 ? '' : 's'} added. Choose ${need === 1 ? 'a category' : 'categories'} in Expenses → UPI.` : `${autoAdded} UPI payment${autoAdded === 1 ? '' : 's'} added with ${autoAdded === 1 ? 'its' : 'their'} remembered categor${autoAdded === 1 ? 'y' : 'ies'}.`);
       const dates = S.expenses.filter(e => e.auto && Date.now() - e.created < 60000).map(e => e.date); if (dates.length) runAlerts(dates);
     }
     else if (ui.view === 'settings' || ui.view === 'review') render();
@@ -1392,5 +1463,5 @@
     try { Native.addListener('openFromAlert', d => { if (d && d.open === 'review') openReviewFromAlert(); }); } catch (e) {}
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { refreshNative(); pullUpi(); } });
   }
-  window.__ledgerApp = { get S() { return S; }, A, ui, render };
+  window.__ledgerApp = { get S() { return S; }, A, ui, render, drawPayCard, catIcon };
 })();
