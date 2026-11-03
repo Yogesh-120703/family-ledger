@@ -31,7 +31,29 @@
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(S)); storageOK = true; }
     catch (e) { storageOK = false; toast('Could not save. Your phone storage may be full.'); }
+    scheduleCloud();
   }
+  /* ---------- online copy for Claude (off until the person connects their own website) ---------- */
+  var cloudTimer = null;
+  const APP_VERSION = '1.9';
+  function scheduleCloud() { try { if (!prefs.cloud || !prefs.cloud.on) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudSend(false), 5000); } catch (e) { /* settings not loaded yet */ } }
+  // What goes online: the ledger only. Payment-reading internals and the activity log stay on the phone.
+  function cloudSnapshot() { const d = JSON.parse(JSON.stringify(S)); d.upi = { payeeCat: (S.upi && S.upi.payeeCat) || {} }; delete d.log; delete d.limitLog; return d; }
+  async function cloudSend(manual) {
+    const c = prefs.cloud; if (!c || !c.url || !c.key) return false;
+    try {
+      const r = await fetch(c.url + '/api/sync', { method: 'POST', headers: { Authorization: 'Bearer ' + c.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ data: cloudSnapshot(), appVersion: APP_VERSION }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || 'The website answered with error ' + r.status + '. Check the address.');
+      c.lastAt = j.savedAt; c.code = j.claudeCode; c.err = null;
+    } catch (e) {
+      c.err = /fetch|network|load failed/i.test(e.message) ? 'Could not reach the website. Check the address and your internet.' : e.message;
+    }
+    savePrefs(); if (ui.view === 'settings') render();
+    if (manual) toast(c.err ? c.err : 'Sent. Claude can now see your latest data.');
+    return !c.err;
+  }
+  function cloudAddress() { const c = prefs.cloud; return c && c.url && c.code ? c.url + '/mcp/' + c.code : ''; }
   persist();
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
   let prefs = {}; try { prefs = JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (e) {}
@@ -491,6 +513,20 @@
   }
 
   /* ---------- SETTINGS ---------- */
+  function cloudPanel() {
+    const c = prefs.cloud || {};
+    const intro = '<p>Keeps a private copy of your ledger on your own website, so you can ask Claude questions like “How much did we spend on groceries this month?”. Only someone with your secret can send data, and only your private Claude address can read it.</p>';
+    if (!c.on) return `<section class="panel" id="cloud"><div class="phead"><div><h2>Ask Claude about your money</h2>${intro}</div></div>
+      <label class="field"><span>Your website address</span><input id="cloud-url" inputmode="url" autocomplete="off" placeholder="https://family-ledger-yourname.vercel.app" value="${esc(c.url || '')}"></label>
+      <label class="field"><span>Secret (the same text you saved as LEDGER_SECRET)</span><input id="cloud-key" type="password" autocomplete="off" placeholder="At least 12 characters"></label>
+      <div class="err" id="cloud-err" role="alert">${esc(c.err || '')}</div>
+      <div><button class="btn primary" data-act="cloudConnect">Connect</button></div></section>`;
+    const addr = cloudAddress();
+    return `<section class="panel" id="cloud"><div class="phead"><div><h2>Ask Claude about your money</h2><p>${c.err ? `<span class="neg">${esc(c.err)}</span>` : c.lastAt ? `On · last sent ${fmtStamp(c.lastAt)}. Changes are sent a few seconds after you save.` : 'On · sending…'}</p></div></div>
+      ${addr ? `<label class="field"><span>Claude connector address (add this in Claude → Settings → Connectors)</span><input id="cloud-addr" readonly value="${esc(addr)}"></label>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${addr ? '<button class="btn primary" data-act="cloudCopy">Copy address</button>' : ''}<button class="btn" data-act="cloudSendNow">Send now</button><button class="btn ghost" data-act="cloudOff">Turn off</button></div>
+      <p class="muted" style="margin:0;font-size:.82rem">Website: ${esc(c.url)}. Keep the Claude address private: anyone with it can read your ledger.</p></section>`;
+  }
   function vSettings() {
     const y = ui.year, m = ui.month, k = ui.catTab;
     const list = S.cats.filter(c => c.kind === k);
@@ -543,6 +579,7 @@
       <div>${list.filter(c => !c.archived).map(catRow).join('')}</div>
       ${list.some(c => c.archived) ? `<span class="label">Archived · hidden from new entries, kept in history</span><div>${list.filter(c => c.archived).map(catRow).join('')}</div>` : ''}
     </section>
+    ${cloudPanel()}
     <section class="panel">
       <div class="phead"><div><h2>Backup and move data</h2><p>Data is saved on this phone only. It does not sync to other phones.</p></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="exportJSON">Download backup</button><button class="btn" data-act="copyJSON">Copy backup</button><button class="btn" data-act="csv">Export ${y} CSV</button></div>
@@ -1166,6 +1203,29 @@
 
     /* data */
     exportJSON() { if (download(`family-ledger-backup-${today()}.json`, JSON.stringify(S, null, 1), 'application/json')) { addLog('Backup downloaded'); persist(); } },
+    async cloudConnect() {
+      const $id = i => document.getElementById(i);
+      let url = ($id('cloud-url').value || '').trim(), key = ($id('cloud-key').value || '').trim(), err = $id('cloud-err');
+      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      try { const u = new URL(url); url = u.origin; } catch (e) { url = ''; }
+      if (!url) { err.textContent = 'Type your website address, like https://family-ledger-yourname.vercel.app'; return; }
+      if (key.length < 12) { err.textContent = 'The secret must be at least 12 characters, exactly as saved in Vercel.'; return; }
+      err.textContent = 'Connecting…';
+      prefs.cloud = { url, key, on: true }; savePrefs();
+      const good = await cloudSend(false);
+      if (!good) { const m = prefs.cloud.err; prefs.cloud.on = false; delete prefs.cloud.key; prefs.cloud.err = m; savePrefs(); render(); return; }
+      addLog('Turned on the online copy for Claude (' + url + ')'); persist(); render(); toast('Connected. Copy the Claude address and add it in Claude.');
+    },
+    cloudSendNow() { cloudSend(true); },
+    cloudCopy() {
+      const a = cloudAddress(), done = () => toast('Address copied. Paste it in Claude → Settings → Connectors.');
+      const sel = () => { const el = document.getElementById('cloud-addr'); if (el) { el.focus(); el.select(); } toast('Select the address and copy it.'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(a).then(done).catch(sel); else sel();
+    },
+    cloudOff() {
+      sheet(`<h3>Turn off the online copy?</h3><p>New changes will no longer be sent, and Claude will keep seeing the last copy that was sent. To remove that copy too, delete the database in Vercel.</p><div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn danger solid" data-act="cloudOffOk">Turn off</button></div>`);
+    },
+    cloudOffOk() { const u = prefs.cloud && prefs.cloud.url; prefs.cloud = { url: u, on: false }; savePrefs(); addLog('Turned off the online copy for Claude'); persist(); closeSheet(); render(); toast('Turned off. Nothing more will be sent.'); },
     copyJSON() { const t = JSON.stringify(S); const ok = () => toast('Backup copied. Paste it somewhere safe.'); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok).catch(() => toast('Copy was blocked. Use Download backup instead.')); else toast('Copy is not available. Use Download backup instead.'); },
     csv() { download(`family-ledger-${ui.year}.csv`, '﻿' + L.yearCSV(S, ui.year), 'text/csv'); },
     print() { if (Native) Native.print({ title: 'Family Ledger ' + ui.year }).catch(e => toast((e && e.message) || 'Printing is not available.')); else window.print(); },
