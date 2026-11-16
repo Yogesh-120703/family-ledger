@@ -59,6 +59,8 @@
   let prefs = {}; try { prefs = JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (e) {}
   const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} };
   function addLog(msg) { S.log.unshift({ t: Date.now(), msg }); if (S.log.length > 500) S.log.length = 500; }
+  // Sample data is no longer offered. If it was loaded earlier, clear it once; the family's own entries stay.
+  try { if (S.sampleLoaded) { L.removeSample(S); addLog('Removed the old sample data'); persist(); } } catch (e) {}
 
   /* ---------- ui state ---------- */
   const VIEWS = [['home', 'Home'], ['income', 'Income'], ['expenses', 'Expenses'], ['savings', 'Savings'], ['analytics', 'Analytics'], ['reports', 'Reports']];
@@ -86,6 +88,7 @@
   const app = document.getElementById('app'), navEl = document.getElementById('nav'), layer = document.getElementById('layer');
   const svg = (k, cls) => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ' class="' + cls + '"' : ''}>${ICON[k]}</svg>`;
   function renderNav() {
+    if (!navEl.parentNode.querySelector('.brandside')) navEl.insertAdjacentHTML('beforebegin', '<div class="brandside"><i>₹</i>Family Ledger</div>');
     navEl.innerHTML = VIEWS.map(([k, l]) => `<li><button data-act="go" data-v="${k}" ${ui.view === k ? 'aria-current="page"' : ''}>${svg(k)}${l}</button></li>`).join('');
   }
   function header(title, mode) {
@@ -95,7 +98,7 @@
         ? `<div class="stepper" role="group" aria-label="Month"><button data-act="stepM" data-d="-1" aria-label="Previous month">‹</button><strong>${MONTHS[ui.month]} ${ui.year}</strong><button data-act="stepM" data-d="1" aria-label="Next month">›</button></div>` : '';
     const left = ui.view === 'settings' || ui.view === 'review'
       ? `<div style="display:flex;align-items:center;gap:10px"><button class="iconbtn" data-act="go" data-v="${ui.prevView || 'home'}" aria-label="Back">${svg('back')}</button><h1>${title}</h1></div>`
-      : `<div><div class="brand">Family Income Ledger</div><h1>${title}</h1></div>`;
+      : `<div><div class="brand">Family Ledger</div><h1>${title}</h1></div>`;
     return `<div class="top">${left}<div class="tools">${step}
     ${ui.view !== 'settings' && ui.view !== 'review' ? `<button class="iconbtn" data-act="go" data-v="settings" aria-label="Settings">${svg('gear')}</button>` : ''}</div></div>`;
   }
@@ -115,56 +118,60 @@
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
   function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
   const inr = v => '₹' + Math.round(Math.abs(v)).toLocaleString('en-IN');
+  const GG = { bg: '#17191D', card: '#262A30', raised: '#2D3239', line: '#393D44', ink: '#F5F5F2', muted: '#A5A9B0', faint: '#777D86', gold: '#D4AF6E', gold3: '#E5D0A5', good: '#39B980', bad: '#E07878', need: '#86A8CF', life: '#CF9A7C', uns: '#A79FD6' };
+  const FONT = (w, s) => `${w} ${s}px Inter, system-ui, sans-serif`;
+  function drawIcon(g, key, x, y, size, color) {
+    g.save(); g.translate(x, y); g.scale(size / 24, size / 24); g.strokeStyle = color; g.lineWidth = 1.7; g.lineCap = 'round'; g.lineJoin = 'round';
+    try { g.stroke(new Path2D(CAT_SVG[key] || CAT_SVG.pin)); } catch (e) {} g.restore();
+  }
   function drawMonthCard(cv, r) {
-    const g = cv.getContext('2d'), W = cv.width, H = cv.height, acc = cssVar('--accent') || '#1E7A55';
-    const F = s => `${s}px "Hanken Grotesk", system-ui, sans-serif`, D = s => `700 ${s}px "Bricolage Grotesque", system-ui, sans-serif`;
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
-    g.fillStyle = acc; rr(g, 0, 0, W, H, 48); g.fill();
-    g.fillStyle = '#FFFFFF'; rr(g, 40, 300, W - 80, H - 340, 36); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.8)'; g.font = F(38); g.fillText('Family Ledger', 70, 100);
-    g.fillStyle = '#FFFFFF'; g.font = D(84); g.fillText(FULL[r.m] + ' ' + r.y, 70, 195);
-    g.font = F(40); g.fillStyle = 'rgba(255,255,255,.9)';
-    g.fillText(r.hasIncome ? `Kept ${r.leftPct == null ? '—' : r.leftPct + '%'} of income` : 'Add income to see what you kept', 70, 258);
-    // three figures
-    const cols = [['Income', r.income, '#1E7A55'], ['Spent', r.expenses, '#D2443F'], ['Left', r.left, r.left >= 0 ? '#1E7A55' : '#D2443F']];
+    g.fillStyle = GG.bg; rr(g, 0, 0, W, H, 48); g.fill();
+    g.strokeStyle = 'rgba(212,175,110,.45)'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 47); g.stroke();
+    g.fillStyle = GG.gold; g.fillRect(70, 70, 64, 4);
+    g.fillStyle = GG.gold; g.font = FONT(600, 30); g.fillText('FAMILY LEDGER', 70, 125);
+    g.fillStyle = GG.ink; g.font = FONT(600, 80); g.fillText(FULL[r.m] + ' ' + r.y, 70, 215);
+    g.fillStyle = GG.muted; g.font = FONT(400, 38);
+    g.fillText(r.hasIncome ? `Kept ${r.leftPct == null ? '—' : r.leftPct + '%'} of income` : 'Add income to see what you kept', 70, 275);
+    g.fillStyle = GG.card; rr(g, 40, 320, W - 80, H - 360, 36); g.fill();
+    const cols = [['INCOME', r.income, GG.good], ['SPENT', r.expenses, GG.bad], ['LEFT', r.left, r.left >= 0 ? GG.gold : GG.bad]];
     cols.forEach(([lab, v, col], i) => {
       const x = 80 + i * 320;
-      g.fillStyle = '#5B6E63'; g.font = F(34); g.fillText(lab, x, 380);
-      g.fillStyle = col; g.font = D(60); g.fillText((v < 0 ? '−' : '') + inr(v), x, 450);
+      g.fillStyle = GG.faint; g.font = FONT(600, 28); g.fillText(lab, x, 395);
+      g.fillStyle = col; g.font = FONT(600, 56); g.fillText((v < 0 ? '−' : '') + inr(v), x, 462);
     });
-    g.fillStyle = '#E3ECE6'; g.fillRect(80, 500, W - 160, 3);
-    // where the money went: top 5 categories with pictures and bars
-    g.fillStyle = '#13241B'; g.font = D(44); g.fillText('Where the money went', 80, 580);
+    g.fillStyle = GG.line; g.fillRect(80, 505, W - 160, 2);
+    g.fillStyle = GG.ink; g.font = FONT(600, 40); g.fillText('Where the money went', 80, 580);
     const top = r.cats.slice(0, 5), max = top.length ? top[0].v : 1;
-    if (!top.length) { g.fillStyle = '#5B6E63'; g.font = F(38); g.fillText('No expenses this month yet.', 80, 660); }
+    if (!top.length) { g.fillStyle = GG.muted; g.font = FONT(400, 36); g.fillText('No expenses this month yet.', 80, 660); }
     top.forEach((c, i) => {
-      const y = 650 + i * 120, col = c.type === 'life' ? '#DD7420' : c.type === 'uns' ? '#7B5BE6' : '#2F6FD0';
-      g.fillStyle = col + '22'; rr(g, 80, y - 10, 84, 84, 22); g.fill();
-      g.font = '48px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(catIcon(c.catId, c.type), 122, y + 50); g.textAlign = 'left';
-      g.fillStyle = '#13241B'; g.font = F(38); g.fillText(c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name, 190, y + 22);
-      g.fillStyle = '#E7EFEA'; rr(g, 190, y + 40, 560, 20, 10); g.fill();
-      g.fillStyle = col; rr(g, 190, y + 40, Math.max(20, 560 * c.v / max), 20, 10); g.fill();
-      g.fillStyle = '#13241B'; g.font = D(40); g.textAlign = 'right'; g.fillText(inr(c.v), W - 80, y + 60); g.textAlign = 'left';
+      const y = 650 + i * 118, col = c.type === 'life' ? GG.life : c.type === 'uns' ? GG.uns : GG.need;
+      g.fillStyle = GG.raised; rr(g, 80, y - 12, 84, 84, 22); g.fill();
+      drawIcon(g, catIconKey(c.catId, c.type), 98, y + 6, 48, col);
+      g.fillStyle = GG.ink; g.font = FONT(500, 36); g.fillText(c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name, 190, y + 20);
+      g.fillStyle = GG.sunk || '#202329'; rr(g, 190, y + 42, 560, 14, 7); g.fill();
+      g.fillStyle = col; rr(g, 190, y + 42, Math.max(16, 560 * c.v / max), 14, 7); g.fill();
+      g.fillStyle = GG.ink; g.font = FONT(600, 38); g.textAlign = 'right'; g.fillText(inr(c.v), W - 80, y + 56); g.textAlign = 'left';
     });
-    g.fillStyle = '#5B6E63'; g.font = F(30); g.fillText(`${r.nExp} expense${r.nExp === 1 ? '' : 's'} · Necessary ${inr(r.need)} · Lifestyle ${inr(r.life)}`, 80, H - 80);
+    g.fillStyle = GG.faint; g.font = FONT(400, 28); g.fillText(`${r.nExp} expense${r.nExp === 1 ? '' : 's'} · Necessary ${inr(r.need)} · Lifestyle ${inr(r.life)}`, 80, H - 80);
   }
   /* Payment card: the picture shown inside the phone alert when a payment is added. */
   function drawPayCard(cv, p) {
-    const g = cv.getContext('2d'), W = cv.width, H = cv.height, acc = cssVar('--accent') || '#1E7A55';
-    const F = s => `${s}px "Hanken Grotesk", system-ui, sans-serif`, D = s => `700 ${s}px "Bricolage Grotesque", system-ui, sans-serif`;
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
-    g.fillStyle = '#FFFFFF'; rr(g, 0, 0, W, H, 40); g.fill();
-    g.fillStyle = acc; rr(g, 0, 0, 22, H, 0); g.fill();
-    const col = p.type === 'life' ? '#DD7420' : p.type === 'uns' ? '#7B5BE6' : p.type === 'save' ? '#13916A' : '#2F6FD0';
-    g.fillStyle = col + '22'; rr(g, 70, 70, 170, 170, 40); g.fill();
-    g.font = '96px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(p.icon, 155, 190); g.textAlign = 'left';
-    g.fillStyle = '#5B6E63'; g.font = F(38); g.fillText('Paid to', 280, 110);
-    g.fillStyle = '#13241B'; g.font = D(58); g.fillText(p.payee.length > 22 ? p.payee.slice(0, 21) + '…' : p.payee, 280, 180);
-    g.fillStyle = p.type === 'uns' ? '#7B5BE6' : '#1E7A55'; g.font = F(40); g.fillText(p.category, 280, 238);
-    g.fillStyle = '#13241B'; g.font = D(110); g.fillText(inr(p.amount), 70, 400);
-    g.fillStyle = '#5B6E63'; g.font = F(34); g.fillText(p.when + ' · ' + p.source, 70, 460);
-    g.fillStyle = acc; rr(g, W - 330, 360, 260, 70, 35); g.fill();
-    g.fillStyle = '#FFFFFF'; g.font = D(34); g.textAlign = 'center'; g.fillText(p.type === 'uns' ? 'Set category' : 'Added ✓', W - 200, 407); g.textAlign = 'left';
+    g.fillStyle = GG.card; rr(g, 0, 0, W, H, 40); g.fill();
+    g.strokeStyle = 'rgba(212,175,110,.45)'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 39); g.stroke();
+    const col = p.type === 'life' ? GG.life : p.type === 'uns' ? GG.uns : p.type === 'save' ? GG.gold : GG.need;
+    g.fillStyle = GG.raised; rr(g, 70, 70, 170, 170, 40); g.fill();
+    drawIcon(g, p.iconKey || 'pin', 105, 105, 100, col);
+    g.fillStyle = GG.muted; g.font = FONT(400, 36); g.fillText('Paid to', 280, 112);
+    g.fillStyle = GG.ink; g.font = FONT(600, 56); g.fillText(p.payee.length > 22 ? p.payee.slice(0, 21) + '…' : p.payee, 280, 180);
+    g.fillStyle = p.type === 'uns' ? GG.uns : GG.gold; g.font = FONT(500, 38); g.fillText(p.category, 280, 238);
+    g.fillStyle = GG.ink; g.font = FONT(600, 104); g.fillText(inr(p.amount), 70, 400);
+    g.fillStyle = GG.faint; g.font = FONT(400, 32); g.fillText(p.when + ' · ' + p.source, 70, 460);
+    g.fillStyle = GG.gold; rr(g, W - 330, 360, 260, 70, 18); g.fill();
+    g.fillStyle = GG.bg; g.font = FONT(600, 32); g.textAlign = 'center'; g.fillText(p.type === 'uns' ? 'Set category' : 'Added ✓', W - 200, 406); g.textAlign = 'left';
   }
 
   /* ---------- routing (Android back button moves between screens) ---------- */
@@ -187,22 +194,40 @@
 
   /* ---------- HOME ---------- */
   /* A small picture for every category, so a payment can be recognised at a glance. */
-  const CAT_ICONS = [[/rent|house/i,'🏠'],[/grocer/i,'🛒'],[/electric/i,'⚡'],[/water/i,'💧'],[/gas/i,'🔥'],[/milk|dairy/i,'🥛'],[/internet|wi-?fi/i,'📶'],
-    [/mobile|recharge/i,'📱'],[/transport|petrol|fuel|bus|auto/i,'🚌'],[/education|school|college|fees/i,'🎓'],[/medical|hospital|medicine|health/i,'💊'],
-    [/loan|emi/i,'🏦'],[/household/i,'🧺'],[/insurance/i,'🛡️'],[/domestic|maid|help/i,'🧹'],[/cinema|theatre|movie/i,'🎬'],[/restaurant|hotel/i,'🍽️'],
-    [/online food|swiggy|zomato/i,'🛵'],[/shopping/i,'🛍️'],[/entertain/i,'🎮'],[/trip|travel/i,'✈️'],[/subscri/i,'📺'],[/snack|drink|tea|coffee/i,'☕'],
-    [/family|sister|brother|amma|appa|mother|father|wife|husband|son|daughter/i,'👨‍👩‍👧'],[/friend/i,'🤝'],[/gift/i,'🎁'],[/temple|pooja|donation/i,'🛕'],
-    [/fixed deposit|fd\b|recurring|rd\b/i,'🏛️'],[/emergency/i,'🆘'],[/saving|future|bank/i,'💰'],[/other/i,'📦']];
-  function catIcon(catId, type) {
-    if (type === 'uns' || !catId) return '❓';
+  const CAT_SVG = {
+    home: 'M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6', cart: 'M3 4h2l2.4 11h10.2L20 8H6.2M8 20a1 1 0 1 0 2 0a1 1 0 1 0-2 0M16 20a1 1 0 1 0 2 0a1 1 0 1 0-2 0',
+    bolt: 'M13 2L4 14h7l-1 8 9-12h-7z', drop: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z', flame: 'M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .2 1.8 1 2.8 2 3.2C11 9 11 6 12 3z',
+    milk: 'M9 3h6v3l2 3v12H7V9l2-3zM7 12h10', wifi: 'M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5v.01', phone: 'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM11 18h2',
+    bus: 'M5 4h14v13H5zM5 11h14M8 20v-3M16 20v-3', cap: 'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5M22 9v6', pill: 'M10.5 3.5a5 5 0 0 1 7 7l-7 7a5 5 0 0 1-7-7zM7 7l10 10',
+    bank: 'M3 9l9-5 9 5M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18', basket: 'M3 10h18l-2 10H5zM8 10l4-6 4 6M9 14v3M15 14v3', shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+    broom: 'M14 3l-4 9M7 12h8l2 9H5zM9 16v5M13 16v5', film: 'M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4', food: 'M7 3v8a2 2 0 0 0 2 2v8M5 3v6M9 3v6M17 3c-2 1-3 4-3 8h3v10',
+    scooter: 'M5 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M15 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0M9 18h6l2-7h-4M13 6h3l1 5', bag: 'M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2',
+    game: 'M6 9h12a4 4 0 0 1 0 8c-1.5 0-2.5-1-3-2H9c-.5 1-1.5 2-3 2a4 4 0 0 1 0-8zM8 11v4M6 13h4', plane: 'M2 13l20-9-6 17-4-7zM12 14l4-4', tv: 'M3 6h18v12H3zM8 21h8M9 2l3 4 3-4',
+    cup: 'M4 8h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6zM17 10h2a2 2 0 0 1 0 4h-2M8 3v2M12 3v2', family: 'M5.5 7a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M13.5 7a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M3 20v-3a5 5 0 0 1 10 0v3M13 14.5a5 5 0 0 1 8 2.5v3',
+    hands: 'M3 12l4-4 5 3 5-3 4 4M7 8l5 9 5-9', gift: 'M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7c-1-3-5-3-5-1s5 1 5 1zM12 7c1-3 5-3 5-1s-5 1-5 1z', temple: 'M12 2l2 4h-4zM7 8h10l1 3H6zM5 11h14v9H5zM10 20v-5h4v5',
+    coins: 'M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5', buoy: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6',
+    box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10', ask: 'M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17v.01',
+    spark: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z', pin: 'M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11zM10 10a2 2 0 1 0 4 0a2 2 0 1 0-4 0'
+  };
+  const CAT_ICONS = [[/rent|house/i,'home'],[/grocer/i,'cart'],[/electric/i,'bolt'],[/water/i,'drop'],[/gas/i,'flame'],[/milk|dairy/i,'milk'],[/internet|wi-?fi/i,'wifi'],
+    [/mobile|recharge/i,'phone'],[/transport|petrol|fuel|bus|auto/i,'bus'],[/education|school|college|fees/i,'cap'],[/medical|hospital|medicine|health/i,'pill'],
+    [/loan|emi/i,'bank'],[/household/i,'basket'],[/insurance/i,'shield'],[/domestic|maid|help/i,'broom'],[/cinema|theatre|movie/i,'film'],[/restaurant|hotel/i,'food'],
+    [/online food|swiggy|zomato/i,'scooter'],[/shopping/i,'bag'],[/entertain/i,'game'],[/trip|travel/i,'plane'],[/subscri/i,'tv'],[/snack|drink|tea|coffee/i,'cup'],
+    [/family|sister|brother|amma|appa|mother|father|wife|husband|son|daughter/i,'family'],[/friend/i,'hands'],[/gift/i,'gift'],[/temple|pooja|donation/i,'temple'],
+    [/fixed deposit|fd\b|recurring|rd\b/i,'bank'],[/emergency/i,'buoy'],[/saving|future|bank/i,'coins'],[/other/i,'box']];
+  /* A thin line drawing for every category, so a payment can be recognised at a glance. Returns the drawing's name. */
+  function catIconKey(catId, type) {
+    if (type === 'uns' || !catId) return 'ask';
     const n = L.catName(S, catId), hit = CAT_ICONS.find(([rx]) => rx.test(n));
-    return hit ? hit[1] : type === 'life' ? '✨' : type === 'save' ? '💰' : '📌';
+    return hit ? hit[1] : type === 'life' ? 'spark' : type === 'save' ? 'coins' : 'pin';
   }
+  const catIcon = (catId, type) => catIconKey(catId, type);
+  const catSvg = (catId, type) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${CAT_SVG[catIconKey(catId, type)]}"/></svg>`;
   function txRow(e, kind) {
     const isSave = kind === 'save';
     const c = L.catName(S, e.catId), sub = L.subName(S, e.catId, e.subId);
     const who = L.personName(S, isSave ? e.by : e.paidBy, isSave ? e.byName : e.paidName);
-    return `<button class="tx" data-act="${isSave ? 'editSave' : 'editExp'}" data-id="${e.id}"><i class="cicon ${isSave ? 'save' : e.type}" aria-hidden="true">${catIcon(e.catId, isSave ? 'save' : e.type)}</i>
+    return `<button class="tx" data-act="${isSave ? 'editSave' : 'editExp'}" data-id="${e.id}"><i class="cicon ${isSave ? 'save' : e.type}" aria-hidden="true">${catSvg(e.catId, isSave ? 'save' : e.type)}</i>
       <span class="t"><strong>${e.catAuto ? '<span class="muted" title="Category remembered">⟳</span> ' : ''}${esc(e.name)}</strong><span>${esc(c)}${sub ? ' › ' + esc(sub) : ''} · ${esc(who)} · ${fmtDate(e.date)}${e.mode ? ' · ' + esc(e.mode) : ''}${e.note ? ' · ' + esc(e.note) : ''}</span></span>
       <span class="a">${fmtINR(e.amount)}</span></button>`;
   }
@@ -215,7 +240,7 @@
       <div class="r2">${x.level === 'over' ? `<span class="t-over">${fmtINR(-x.left)} over the limit</span>` : x.level === 'reached' ? '<span class="t-reached">Limit reached</span>' : fmtINR(x.left) + ' remaining'}</div></div>`).join('')}</div>`;
   }
   function vHome() {
-    const y = ui.year, m = ui.month, t = L.totals(S, y, m);
+    const y = ui.year, m = ui.month, t = L.totals(S, y, m), r = L.monthReport(S, y, m);
     const base = Math.max(t.income, t.total + t.save) || 1;
     const recent = L.inMonth(S.expenses, y, m).map(e => [e, 'exp']).concat(L.inMonth(S.savings, y, m).map(e => [e, 'save']))
       .sort((a, b) => b[0].date.localeCompare(a[0].date) || (b[0].created || 0) - (a[0].created || 0)).slice(0, 6);
@@ -226,42 +251,73 @@
       return `<span class="delta ${good ? 'pos' : 'neg'}">${up ? '▲' : '▼'} ${fmtINR(Math.abs(pair.diff))}</span>`; };
     const vsLabel = cmp ? (cmp.partial ? `vs 1–${cmp.cutDay} ${MONTHS[cmp.pm]}` : `vs ${MONTHS[cmp.pm]}`) : '';
     const isEmpty = !S.expenses.length && !S.savings.length && !Object.keys(S.records).length;
-    const card = (label, v, sub, has, sw, dl) => `<div class="card"><span class="label">${sw ? `<i class="sw" style="background:${sw}"></i>` : ''}${label}</span>${has ? `<span class="v">${fmtINR(v)}</span>` : `<span class="v nil">Not recorded</span>`}<span class="s">${dl ? dl + ' <span class="muted">' + vsLabel + '</span>' : sub}</span></div>`;
+    const kpi = (cls, label, v, has, sub) => `<div class="card ${cls}"><span class="label">${label}</span>${has ? `<span class="v">${fmtINR(v)}</span>` : `<span class="v nil">Not recorded</span>`}<span class="s">${sub}</span></div>`;
+    const total = rb.started ? rb.total : t.bal;
+
+    // family members this month: income, what they paid, what they saved
+    const rec = S.records[mk(y, m)] || {};
+    const fam = active().map(p => {
+      const inc = rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0;
+      const spent = L.sum(L.inMonth(S.expenses, y, m).filter(e => e.paidBy === p.id));
+      const saved = L.sum(L.inMonth(S.savings, y, m).filter(e => e.by === p.id));
+      return { p, inc, spent, saved };
+    });
+    const initials = n => String(n).trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const famPanel = `<section class="panel" aria-label="Family members"><div class="phead"><div><h2>Family members</h2><p>${FULL[m]} ${y} · income, paid and saved by each person</p></div><button class="linkbtn" data-act="go" data-v="income">Income</button></div>
+      <div class="fam">${fam.map(x => `<div class="fammem"><div class="pt"><span class="av" aria-hidden="true">${esc(initials(x.p.name))}</span><strong>${esc(x.p.name)}</strong></div>
+        <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd></div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd></div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd></div></dl></div>`).join('')}</div></section>`;
+
+    const cats = r.cats.slice(0, 6), cmax = cats.length ? cats[0].v : 1, colOf = k => k === 'life' ? 'var(--life)' : k === 'uns' ? 'var(--uns)' : 'var(--need)';
+    const catPanel = `<section class="panel" aria-label="Category breakdown"><div class="phead"><div><h2>Where the money went</h2><p>${cats.length ? 'Top categories · ' + FULL[m] : 'No expenses this month yet'}</p></div>${cats.length ? '<button class="linkbtn" data-act="go" data-v="analytics">Analytics</button>' : ''}</div>
+      ${cats.length ? `<ul class="cbreak">${cats.map(c => `<li><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span class="nm"><strong>${esc(c.type === 'uns' ? 'Needs a category' : c.name)}</strong><span class="bar"><i style="width:${Math.max(3, c.v / cmax * 100)}%;background:${colOf(c.type)}"></i></span></span>
+        <span class="amt">${fmtINR(c.v)}<small>${r.expenses ? Math.round(c.v / r.expenses * 100) + '%' : ''}</small></span></li>`).join('')}</ul>` : `<div class="empty"><b>Nothing spent yet</b>Expenses you add appear here by category.</div>`}</section>`;
+
+    const ovPanel = t.empty ? '' : `<section class="panel" aria-label="Monthly overview"><div class="phead"><div><h2>Monthly overview</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income` : 'Add income to see how much you kept'}${cmp && !cmp.partial && cmp.total.diff ? ` · spending ${cmp.total.diff > 0 ? 'up' : 'down'} ${fmtINR(Math.abs(cmp.total.diff))} ${vsLabel}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
+      <div class="meter" aria-hidden="true"><i style="width:${t.need / base * 100}%;background:var(--need)"></i><i style="width:${t.life / base * 100}%;background:var(--life)"></i><i style="width:${t.uns / base * 100}%;background:var(--uns)"></i><i style="width:${t.save / base * 100}%;background:var(--save)"></i></div>
+      <div class="ov">
+        <div class="ovrow"><span><i class="sw" style="background:var(--need)"></i>Necessary</span><span>${delta(cmp && cmp.need, false)} <b>${fmtINR(t.need)}</b></span></div>
+        <div class="ovrow"><span><i class="sw" style="background:var(--life)"></i>Lifestyle</span><span>${delta(cmp && cmp.life, false)} <b>${fmtINR(t.life)}</b></span></div>
+        ${t.uns ? `<div class="ovrow"><span><i class="sw" style="background:var(--uns)"></i>Needs a category</span><b>${fmtINR(t.uns)}</b></div>` : ''}
+        <div class="ovrow"><span><i class="sw" style="background:var(--save)"></i>Savings</span><span>${delta(cmp && cmp.save, true)} <b>${fmtINR(t.save)}</b></span></div>
+        <div class="ovrow" style="border-top:1px solid var(--line);padding-top:10px"><span>Available this month</span><b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></div>
+      </div></section>`;
+
+    const chartPanel = `<section class="panel" aria-label="Income and expenses"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div></div>${incomeVsExpenseChart(y, m)}
+      <div class="ckey"><span><i class="ln" style="background:var(--good)"></i>Income</span><span><i class="ln" style="background:var(--bad)"></i>Expenses</span></div></section>`;
+
+    const recentPanel = `<section class="panel"><div class="phead"><div><h2>Recent transactions</h2><p>${FULL[m]} ${y}</p></div><button class="linkbtn" data-act="go" data-v="expenses">All expenses</button></div>
+      ${recent.length ? recent.map(([e, k]) => txRow(e, k)).join('') : `<div class="empty"><b>Nothing recorded in ${FULL[m]}</b>Tap + Expense when you spend money.</div>`}</section>`;
+
+    const duePanel = due.length ? `<section class="panel" aria-label="Bills and repeating payments"><div class="phead"><div><h2>Bills and repeating payments</h2><p>${due.filter(d => d.days <= 0).length ? due.filter(d => d.days <= 0).length + ' due now · ' : ''}next 7 days</p></div><button class="linkbtn" data-act="goRecurring">Manage</button></div>
+      ${due.slice(0, 6).map(d => `<div class="duerow"><button class="dt" data-act="dueOpen" data-id="${d.r.id}" data-k="${d.key}"><strong>${esc(d.r.name)}</strong><span class="${d.days < 0 ? 't-over' : d.days === 0 ? 't-reached' : 'muted'}">${d.days < 0 ? -d.days + ' day' + (d.days === -1 ? '' : 's') + ' late' : d.days === 0 ? 'Due today' : d.days === 1 ? 'Due tomorrow' : 'Due in ' + d.days + ' days'} · ${fmtDate(d.date)}</span></button>
+        <span class="num">${d.r.amount == null ? '<span class="muted" style="font-size:.84rem">Amount varies</span>' : fmtINR(d.r.amount)}</span>
+        <span class="acts"><button class="btn small ghost" data-act="dueSkip" data-id="${d.r.id}" data-k="${d.key}">Skip</button><button class="btn small primary" data-act="dueAdd" data-id="${d.r.id}" data-k="${d.key}">${d.r.amount == null ? 'Enter' : 'Add'}</button></span></div>`).join('')}
+      ${due.length > 6 ? `<button class="linkbtn" data-act="goRecurring">${due.length - 6} more</button>` : ''}</section>` : '';
+
+    const cmpPanel = cmp && cmp.cats.length && t.nExp ? `<section class="panel"><div class="phead"><div><h2>Compared with ${cmp.partial ? '1–' + cmp.cutDay + ' ' : ''}${FULL[cmp.pm]}</h2><p>Biggest changes in spending${cmp.partial ? ' for the same days' : ''}</p></div></div>
+      <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div></section>` : '';
+    const limPanel = st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 3)}</section>` : '';
+
     return header('Home', 'month') + `
     ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Family Ledger on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
-    ${isEmpty ? `<div class="notice"><span>New here? Load sample data to see how every screen works, or bring data from the web version.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="loadSample">Load sample data</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
+    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend. You can also bring data from a backup.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
     ${needsCatPanel()}
-    ${S.sampleLoaded ? `<div class="notice"><span><strong>Sample data is showing.</strong> Remove it before you start entering real figures. Your own entries are kept.</span><button class="btn small" data-act="removeSample">Remove sample data</button></div>` : ''}
-    <section class="balance" aria-label="Available balance">
-      <span class="label">Available balance · ${FULL[m]} ${y}</span>
-      ${t.empty ? `<span class="v muted" style="font-size:1.4rem;font-family:var(--body)">No records yet</span><span class="eq">Add income, expenses or savings for ${FULL[m]}.</span>`
-        : `<span class="v ${t.bal > 0 ? 'pos' : t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</span>
-      <span class="eq">${fmtINR(t.income)} income − ${fmtINR(t.total)} expenses − ${fmtINR(t.save)} savings</span>
-      <div class="meter" aria-hidden="true"><i style="width:${t.need / base * 100}%;background:var(--need)"></i><i style="width:${t.life / base * 100}%;background:var(--life)"></i><i style="width:${t.save / base * 100}%;background:var(--save)"></i></div>
-      <div class="mkey"><span><i class="sw" style="background:var(--need)"></i>Necessary</span><span><i class="sw" style="background:var(--life)"></i>Lifestyle</span><span><i class="sw" style="background:var(--save)"></i>Savings</span><span><i class="sw" style="background:var(--sunk)"></i>Available</span></div>`}
-      ${rb.started && (rb.carried !== 0 || rb.opening) ? `<div class="carry"><div><span class="label">Carried from earlier months</span><span class="num ${rb.carried < 0 ? 'neg' : ''}">${fmtINR(rb.carried)}</span></div><div><span class="label">Total balance</span><span class="num big ${rb.total > 0 ? 'pos' : rb.total < 0 ? 'neg' : ''}">${fmtINR(rb.total)}</span></div></div>` : ''}
+    <section class="balance" aria-label="Total family balance">
+      <span class="label">Total family balance</span>
+      ${t.empty && !rb.started ? `<span class="v" style="color:var(--faint);font-size:1.5rem">No records yet</span><span class="sub">Add income, expenses or savings for ${FULL[m]}.</span>`
+        : `<span class="v ${total < 0 ? 'neg' : ''}">${fmtINR(total)}</span>
+      <span class="sub">${rb.started ? `<span>This month <b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></span><span>Earlier months <b class="${rb.carried < 0 ? 'neg' : ''}">${fmtINR(rb.carried)}</b></span>` : `<span>${FULL[m]} ${y}</span><span>Income − expenses − savings</span>`}</span>`}
     </section>
-    ${due.length ? `<section class="panel" aria-label="Bills and repeating payments"><div class="phead"><div><h2>Bills and repeating payments</h2><p>${due.filter(d => d.days <= 0).length ? due.filter(d => d.days <= 0).length + ' due now · ' : ''}next 7 days</p></div><button class="linkbtn" data-act="goRecurring">Manage</button></div>
-      ${due.slice(0, 6).map(d => `<div class="duerow"><button class="dt" data-act="dueOpen" data-id="${d.r.id}" data-k="${d.key}"><strong>${esc(d.r.name)}</strong><span class="${d.days < 0 ? 't-over' : d.days === 0 ? 't-reached' : 'muted'}">${d.days < 0 ? -d.days + ' day' + (d.days === -1 ? '' : 's') + ' late' : d.days === 0 ? 'Due today' : d.days === 1 ? 'Due tomorrow' : 'Due in ' + d.days + ' days'} · ${fmtDate(d.date)}</span></button>
-        <span class="num">${d.r.amount == null ? '<span class="muted" style="font-family:var(--body);font-size:.84rem">Amount varies</span>' : fmtINR(d.r.amount)}</span>
-        <span class="acts"><button class="btn small ghost" data-act="dueSkip" data-id="${d.r.id}" data-k="${d.key}">Skip</button><button class="btn small primary" data-act="dueAdd" data-id="${d.r.id}" data-k="${d.key}">${d.r.amount == null ? 'Enter' : 'Add'}</button></span></div>`).join('')}
-      ${due.length > 6 ? `<button class="linkbtn" data-act="goRecurring">${due.length - 6} more</button>` : ''}</section>` : ''}
-    <section class="cards" aria-label="Month summary">
-      ${card('Family income', t.income, t.hasIncome ? active().length + ' members' : `<button class="linkbtn" data-act="go" data-v="income">Add income</button>`, t.hasIncome, null, t.hasIncome && cmp && !cmp.partial ? delta(cmp.income, true) : '')}
-      ${card('Necessary', t.need, t.nExp ? 'Essentials' : 'No expenses yet', t.nExp > 0, 'var(--need)', cmp ? delta(cmp.need, false) : '')}
-      ${card('Lifestyle', t.life, 'Personal spending', t.nExp > 0, 'var(--life)', cmp ? delta(cmp.life, false) : '')}
-      ${card('Total expenses', t.total, t.uns ? `incl. ${fmtINR(t.uns)} not sorted` : t.nExp + ' record' + (t.nExp === 1 ? '' : 's'), t.nExp > 0, null, cmp && !t.uns ? delta(cmp.total, false) : '')}
-      ${card('Savings', t.save, t.nSave + ' entr' + (t.nSave === 1 ? 'y' : 'ies'), t.nSave > 0, 'var(--save)', cmp ? delta(cmp.save, true) : '')}
-      ${rb.started ? `<div class="card"><span class="label">Total balance</span><span class="v ${rb.total > 0 ? 'pos' : rb.total < 0 ? 'neg' : ''}">${fmtINR(rb.total)}</span><span class="s">Incl. earlier months</span></div>` : ''}
+    <section class="kpis" aria-label="This month">
+      ${kpi('inc', 'Monthly income', t.income, t.hasIncome, t.hasIncome ? (cmp && !cmp.partial ? delta(cmp.income, true) + ' <span class="muted">' + vsLabel + '</span>' : active().length + ' members') : `<button class="linkbtn" data-act="go" data-v="income">Add income</button>`)}
+      ${kpi('exp', 'Monthly expenses', t.total, t.nExp > 0, t.nExp ? (cmp && !t.uns ? delta(cmp.total, false) + ' <span class="muted">' + vsLabel + '</span>' : t.nExp + ' record' + (t.nExp === 1 ? '' : 's')) : 'No expenses yet')}
+      ${kpi('sav', 'Savings', t.save, t.nSave > 0, t.nSave ? t.nSave + ' entr' + (t.nSave === 1 ? 'y' : 'ies') : 'Nothing saved yet')}
     </section>
-    ${homeReport(y, m)}
-    ${cmp && cmp.cats.length && t.nExp ? `<section class="panel"><div class="phead"><div><h2>Compared with ${cmp.partial ? '1–' + cmp.cutDay + ' ' : ''}${FULL[cmp.pm]}</h2><p>Biggest changes in spending${cmp.partial ? ' for the same days' : ''}</p></div></div>
-      <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div>
-      <p class="muted" style="margin:0;font-size:.84rem">Spending ${cmp.total.diff > 0 ? 'is up' : cmp.total.diff < 0 ? 'is down' : 'is the same'}${cmp.total.diff ? ' by ' + fmtINR(Math.abs(cmp.total.diff)) : ''} overall.</p></section>` : ''}
-    ${st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 3)}</section>` : ''}
-    <section class="panel"><div class="phead"><div><h2>Recent transactions</h2><p>${FULL[m]} ${y}</p></div></div>
-      ${recent.length ? recent.map(([e, k]) => txRow(e, k)).join('') : `<div class="empty"><b>Nothing recorded in ${FULL[m]}</b>Tap + Expense when you spend money.</div>`}
-    </section>`;
+    ${duePanel}
+    <div class="homegrid">
+      <div class="col">${ovPanel}${chartPanel}${catPanel}${cmpPanel}</div>
+      <div class="col">${recentPanel}${famPanel}${limPanel}${homeReport(y, m)}</div>
+    </div>`;
   }
 
   /* ---------- EXPENSES ---------- */
@@ -514,7 +570,7 @@
     s.forEach((x, i) => {
       const cx = Lp + i * cw + cw / 2, sel = x.y === y && x.m === m;
       if (x.income > 0) { const yy = f.sy(x.income); b += `<rect x="${cx - bw - 1}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="var(--good)" rx="2"><title>${MONTHS[x.m]} income ${fmtINR(x.income)}</title></rect>`; }
-      if (x.total > 0) { const yy = f.sy(x.total); b += `<rect x="${cx + 1}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="var(--life)" rx="2"><title>${MONTHS[x.m]} expenses ${fmtINR(x.total)}</title></rect>`; }
+      if (x.total > 0) { const yy = f.sy(x.total); b += `<rect x="${cx + 1}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="var(--bad)" rx="2"><title>${MONTHS[x.m]} expenses ${fmtINR(x.total)}</title></rect>`; }
       b += `<text x="${cx}" y="${H - 8}" text-anchor="middle" fill="${sel ? 'var(--ink)' : 'var(--muted)'}" font-family="var(--mono)" font-size="11" font-weight="${sel ? 700 : 400}">${MONTHS[x.m]}</text>`;
     });
     return `<div class="chartbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Income and expenses, last 6 months" style="min-width:420px">${f.svg}${b}</svg></div>`;
@@ -658,8 +714,6 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="importPaste">Import pasted data</button>${hasBackup ? '<button class="btn ghost" data-act="undoImport">Undo last import</button>' : ''}</div>
       ${deferredInstall ? '<button class="btn" data-act="install">Install app on this phone</button>' : ''}
     </section>
-    <section class="panel"><div class="phead"><div><h2>Sample data</h2><p>${S.sampleLoaded ? 'Example entries from January to today are loaded. Removing them keeps everything you entered yourself.' : 'Fill the app with a realistic family year to try every screen. It can be removed in one tap.'}</p></div>
-      ${S.sampleLoaded ? '<button class="btn danger" data-act="removeSample">Remove sample data</button>' : '<button class="btn" data-act="loadSample">Load sample data</button>'}</div></section>
     <section class="panel"><div class="phead"><div><h2>Activity log</h2><p>Every change, newest first</p></div></div>
       <ul class="hist">${(ui.showAllLog ? S.log : S.log.slice(0, 10)).map(l => `<li><time>${fmtTime(l.t)}</time><span>${esc(l.msg)}</span></li>`).join('')}</ul>
       ${S.log.length > 10 ? `<button class="btn ghost" data-act="showLog">${ui.showAllLog ? 'Show less' : 'Show all ' + S.log.length}</button>` : ''}</section>`;
@@ -696,8 +750,8 @@
   function catOptions(kind, sel) {
     // Payment without a type yet: show every category, grouped, so the box is never empty.
     if (kind === 'uns') return '<option value="" selected disabled>Choose a category</option>'
-      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + otherLast(S.cats.filter(c => c.kind === k && !c.archived)).map(c => `<option value="${c.id}">${catIcon(c.id, k)} ${esc(c.name)}</option>`).join('') + '</optgroup>').join('') + '<option value="__new">＋ New category (like Family)…</option>';
-    return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + otherLast(S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel))).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${catIcon(c.id, kind)} ${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
+      + ['need', 'life'].map(k => `<optgroup label="${KINDS[k]}">` + otherLast(S.cats.filter(c => c.kind === k && !c.archived)).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>').join('') + '<option value="__new">＋ New category (like Family)…</option>';
+    return (sel ? '' : '<option value="" selected disabled>Choose a category</option>') + otherLast(S.cats.filter(c => c.kind === kind && (!c.archived || c.id === sel))).map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}${c.archived ? ' (archived)' : ''}</option>`).join('') + '<option value="__new">＋ New category…</option>';
   }
   function subOptions(catId, sel) {
     const c = L.cat(S, catId); if (!c) return '<option value="">Choose a category first</option>';
@@ -929,7 +983,7 @@
     const r = L.monthReport(S, y, m);
     if (r.empty) return '';
     const tips = visibleTips(y, m);
-    return `<section class="panel homerep"><div class="phead"><div><h2>${FULL[m]} report</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income (${fmtINR(r.left)})` : 'Add income to see how much you kept'}${r.top ? ` · Highest: <strong style="color:var(--ink)">${esc(r.top.name)}</strong> ${fmtINR(r.top.v)}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
+    return `<section class="panel homerep"><div class="phead"><div><h2>${FULL[m]} at a glance</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income (${fmtINR(r.left)})` : 'Add income to see how much you kept'}${r.top ? ` · Highest: <strong style="color:var(--ink)">${esc(r.top.name)}</strong> ${fmtINR(r.top.v)}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
       <div class="mpicwrap"><canvas class="mpic" data-y="${y}" data-m="${m}" width="1080" height="1350" role="img" aria-label="${FULL[m]} at a glance"></canvas></div>
       <h3 class="tiph">Suggestions</h3>${tipsBlock(tips, 4)}${tips.length > 4 ? `<button class="linkbtn" data-act="openMonthReport">${tips.length - 4} more suggestion${tips.length - 4 === 1 ? '' : 's'}</button>` : ''}</section>`;
   }
@@ -1523,5 +1577,5 @@
     try { Native.addListener('openFromAlert', d => { if (d && d.open === 'review') openReviewFromAlert(); }); } catch (e) {}
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { refreshNative(); pullUpi(); } });
   }
-  window.__ledgerApp = { get S() { return S; }, A, ui, render, drawPayCard, catIcon };
+  window.__ledgerApp = { get S() { return S; }, A, ui, render, drawPayCard, catIcon, catIconKey };
 })();

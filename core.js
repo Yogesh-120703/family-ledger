@@ -6,7 +6,7 @@
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const KINDS = { need: 'Necessary', life: 'Lifestyle', uns: 'Not sorted', save: 'Savings' }; // uns = auto-added UPI payment waiting for a category
-  const COLORS = ['#5C9EEA','#F09A4E','#3FC1A5','#D77BB0','#9A86F0','#E3C14D','#56C2D6','#EF7E70','#93B85A','#B99A84'];
+  const COLORS = ['#D4AF6E','#86A8CF','#39B980','#CF9A7C','#A79FD6','#8FB8B0','#E5D0A5','#B98FB2','#7E9AAE','#A5A9B0'];
 
   const DEFAULT_CATS = {
     need: ['House Rent','Groceries','Electricity Bill','Water Bill','Gas Cylinder','Milk and Dairy','Internet and Wi-Fi','Mobile Recharge','Transportation','Education','Medical Expenses','Loan and EMI','Household Supplies','Insurance','Domestic Help','Other Essentials'],
