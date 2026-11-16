@@ -239,6 +239,75 @@
       <div class="track"><i class="lv-${x.level}" style="width:${Math.min(100, x.ratio * 100)}%"></i></div>
       <div class="r2">${x.level === 'over' ? `<span class="t-over">${fmtINR(-x.left)} over the limit</span>` : x.level === 'reached' ? '<span class="t-reached">Limit reached</span>' : fmtINR(x.left) + ' remaining'}</div></div>`).join('')}</div>`;
   }
+  /* ---------- pictures of the data ---------- */
+  // Budget meter: how much of this month's income is already used (spent + saved).
+  function gauge(t) {
+    if (!t.income) return '';
+    const used = (t.total + t.save) / t.income, u = Math.max(0, Math.min(1, used)), a = Math.PI * (1 - u);
+    const R = 80, cx = 100, cy = 92, x = cx + R * Math.cos(a), y = cy - R * Math.sin(a);
+    const col = used >= 1 ? 'var(--bad)' : used >= .85 ? 'var(--warn)' : used >= .6 ? 'var(--accent)' : 'var(--good)';
+    const arc = (from, to, c, w) => { const a1 = Math.PI * (1 - from), a2 = Math.PI * (1 - to); return `<path d="M${cx + R * Math.cos(a1)} ${cy - R * Math.sin(a1)} A${R} ${R} 0 0 1 ${cx + R * Math.cos(a2)} ${cy - R * Math.sin(a2)}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`; };
+    return `<div class="gauge"><svg viewBox="0 0 200 112" role="img" aria-label="${Math.round(used * 100)}% of income used">
+      ${arc(0, 1, 'var(--sunk)', 14)}${u > 0.005 ? arc(0, u, col, 14) : ''}
+      <circle cx="${x}" cy="${y}" r="5" fill="var(--ink)"/>
+      <text x="100" y="80" text-anchor="middle" font-size="26" font-weight="600" fill="var(--ink)">${Math.round(used * 100)}%</text>
+      <text x="100" y="100" text-anchor="middle" font-size="10.5" fill="var(--muted)">of income used</text></svg>
+      <div class="gkey"><span>${fmtINR(Math.max(0, t.income - t.total - t.save))} left</span><span class="muted">of ${fmtINR(t.income)}</span></div></div>`;
+  }
+  // Money jar: savings this month against the savings guide (20% of income by default).
+  function moneyJar(saved, income) {
+    const goal = income * (L.targetsOf(S).save || 20) / 100, f = goal > 0 ? Math.max(0, Math.min(1, saved / goal)) : (saved > 0 ? 1 : 0);
+    const top = 30, bot = 150, h = (bot - top) * f, id = 'jar' + Math.random().toString(36).slice(2, 7);
+    const body = 'M38 30h44v8c10 4 16 12 16 24v76a14 14 0 0 1-14 14H36a14 14 0 0 1-14-14V62c0-12 6-20 16-24z';
+    return `<div class="jar"><svg viewBox="0 0 120 160" role="img" aria-label="Savings jar ${Math.round(f * 100)}% full">
+      <defs><clipPath id="${id}"><path d="${body}"/></clipPath></defs>
+      <path d="${body}" fill="var(--sunk)"/>
+      <rect x="0" y="${bot + 2 - h}" width="120" height="${h + 2}" fill="var(--accent)" opacity=".9" clip-path="url(#${id})"/>
+      ${f > .02 ? `<path d="M22 ${bot + 2 - h}h76" stroke="var(--accent-3)" stroke-width="1.5" clip-path="url(#${id})"/>` : ''}
+      <path d="${body}" fill="none" stroke="var(--accent-line)" stroke-width="2"/>
+      <rect x="34" y="18" width="52" height="12" rx="3" fill="var(--raised)" stroke="var(--accent-line)" stroke-width="1.5"/>
+      <text x="60" y="104" text-anchor="middle" font-size="18" font-weight="600" fill="${f > .45 ? 'var(--accent-ink)' : 'var(--ink)'}">${Math.round(f * 100)}%</text></svg>
+      <div class="jt"><span class="label">Savings jar</span><b>${fmtINR(saved)}</b><span class="muted">${goal > 0 ? 'of ' + fmtINR(goal) + ' goal (' + (L.targetsOf(S).save || 20) + '% of income)' : 'Add income to set a goal'}</span>${f >= 1 ? '<span class="pos">Goal reached</span>' : ''}</div></div>`;
+  }
+  // Picture blocks: one tile per category, sized by how much was spent (squarified treemap).
+  function treemap(cats, total) {
+    const items = cats.filter(c => c.v > 0).slice(0, 10); if (!items.length) return '';
+    const W = 100, H = 62, area = W * H, sum = L.sum(items.map(c => ({ amount: c.v })));
+    const nodes = items.map(c => ({ c, a: c.v / sum * area })), out = [];
+    let x = 0, y = 0, w = W, h = H, row = [];
+    const worst = (row, len) => { const s = row.reduce((t, n) => t + n.a, 0), mx = Math.max(...row.map(n => n.a)), mn = Math.min(...row.map(n => n.a)); return Math.max(len * len * mx / (s * s), (s * s) / (len * len * mn)); };
+    const lay = row => { const s = row.reduce((t, n) => t + n.a, 0);
+      if (w >= h) { const cw = s / h; let yy = y; row.forEach(n => { const ch = n.a / cw; out.push({ ...n, x, y: yy, w: cw, h: ch }); yy += ch; }); x += cw; w -= cw; }
+      else { const ch = s / w; let xx = x; row.forEach(n => { const cw = n.a / ch; out.push({ ...n, x: xx, y, w: cw, h: ch }); xx += cw; }); y += ch; h -= ch; } };
+    nodes.forEach(n => { const len = Math.min(w, h); if (!row.length || worst(row.concat(n), len) <= worst(row, len)) row.push(n); else { lay(row); row = [n]; } });
+    if (row.length) lay(row);
+    const col = k => k === 'life' ? 'var(--life)' : k === 'uns' ? 'var(--uns)' : 'var(--need)';
+    return `<div class="tmap" role="img" aria-label="Spending by category, bigger tile means more money">${out.map(n => { const big = n.w > 18 && n.h > 16, mid = n.w > 11 && n.h > 11;
+      return `<div class="tm ${n.c.type}" style="left:${n.x / W * 100}%;top:${n.y / H * 100}%;width:${n.w / W * 100}%;height:${n.h / H * 100}%;--c:${col(n.c.type)}" title="${esc(n.c.name)} ${fmtINR(n.c.v)}">
+        ${n.h > 22 || !mid ? `<i>${catSvg(n.c.catId, n.c.type)}</i>` : ''}${mid ? `<span class="tn">${esc(n.c.type === 'uns' ? 'Needs a category' : n.c.name)}</span>` : ''}${big ? `<span class="tv">${fmtINR(n.c.v)} · ${Math.round(n.c.v / total * 100)}%</span>` : ''}</div>`; }).join('')}</div>`;
+  }
+  // Day calendar: each day shaded by how much was spent.
+  function spendCalendar(y, m) {
+    const days = new Date(y, m + 1, 0).getDate(), first = (new Date(y, m, 1).getDay() + 6) % 7, per = {};
+    L.inMonth(S.expenses, y, m).forEach(e => { const d = +e.date.slice(8, 10); per[d] = (per[d] || 0) + e.amount; });
+    const vals = Object.values(per), max = vals.length ? Math.max(...vals) : 0, td = today(), cells = [];
+    for (let i = 0; i < first; i++) cells.push('<span class="cd blank"></span>');
+    for (let d = 1; d <= days; d++) { const v = per[d] || 0, lv = !v ? 0 : v >= max * .66 ? 4 : v >= max * .33 ? 3 : v >= max * .12 ? 2 : 1, isT = td === mk(y, m) + '-' + pad(d);
+      cells.push(`<span class="cd l${lv}${isT ? ' today' : ''}" title="${d} ${MONTHS[m]}: ${v ? fmtINR(v) : 'nothing spent'}"><b>${d}</b>${v ? `<small>${short(v)}</small>` : ''}</span>`); }
+    const busiest = Object.entries(per).sort((a, b) => b[1] - a[1])[0];
+    return `<div class="cal"><div class="cw">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells.join('')}</div>
+      <div class="ckey"><span>Less</span><i class="cd l1"></i><i class="cd l2"></i><i class="cd l3"></i><i class="cd l4"></i><span>More</span>${busiest ? `<span style="margin-left:auto">Busiest: <b style="color:var(--ink)">${+busiest[0]} ${MONTHS[m]}</b> · ${fmtINR(busiest[1])}</span>` : ''}</div></div>`;
+  }
+  // Icon counting rows: each coin is a fixed amount.
+  function pictogram(cats) {
+    const list = cats.filter(c => c.v > 0).slice(0, 6); if (!list.length) return '';
+    const max = list[0].v, unit = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(u => max / u <= 20) || 100000;
+    const coin = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8h6M9 11h6M9.5 8c3.5 0 3.5 6 0 6l4 4"/></svg>';
+    return `<p class="muted" style="margin:0;font-size:.84rem">Each coin = <b style="color:var(--accent)">${fmtINR(unit)}</b></p><div class="picto">${list.map(c => { const n = c.v / unit, full = Math.floor(n), part = n - full;
+      return `<div class="pr"><div class="pl"><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span><strong>${esc(c.name)}</strong><small>${fmtINR(c.v)}</small></span></div>
+        <div class="coins" role="img" aria-label="${esc(c.name)}: about ${Math.round(n * 10) / 10} coins">${Array.from({ length: full }, () => `<i>${coin}</i>`).join('')}${part >= .15 ? `<i class="part" style="--p:${Math.round(part * 100)}%">${coin}</i>` : ''}${!full && part < .15 ? '<span class="muted" style="font-size:.78rem">less than one coin</span>' : ''}</div></div>`; }).join('')}</div>`;
+  }
+
   function vHome() {
     const y = ui.year, m = ui.month, t = L.totals(S, y, m), r = L.monthReport(S, y, m);
     const base = Math.max(t.income, t.total + t.save) || 1;
@@ -262,26 +331,30 @@
       const saved = L.sum(L.inMonth(S.savings, y, m).filter(e => e.by === p.id));
       return { p, inc, spent, saved };
     });
+    const fmax = Math.max(1, ...fam.map(x => Math.max(x.inc, x.spent, x.saved)));
+    const fbar = (v, c) => `<span class="fb"><i style="width:${v ? Math.max(3, v / fmax * 100) : 0}%;background:${c}"></i></span>`;
     const initials = n => String(n).trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const famPanel = `<section class="panel" aria-label="Family members"><div class="phead"><div><h2>Family members</h2><p>${FULL[m]} ${y} · income, paid and saved by each person</p></div><button class="linkbtn" data-act="go" data-v="income">Income</button></div>
       <div class="fam">${fam.map(x => `<div class="fammem"><div class="pt"><span class="av" aria-hidden="true">${esc(initials(x.p.name))}</span><strong>${esc(x.p.name)}</strong></div>
-        <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd></div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd></div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd></div></dl></div>`).join('')}</div></section>`;
+        <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
 
     const cats = r.cats.slice(0, 6), cmax = cats.length ? cats[0].v : 1, colOf = k => k === 'life' ? 'var(--life)' : k === 'uns' ? 'var(--uns)' : 'var(--need)';
     const catPanel = `<section class="panel" aria-label="Category breakdown"><div class="phead"><div><h2>Where the money went</h2><p>${cats.length ? 'Top categories · ' + FULL[m] : 'No expenses this month yet'}</p></div>${cats.length ? '<button class="linkbtn" data-act="go" data-v="analytics">Analytics</button>' : ''}</div>
-      ${cats.length ? `<ul class="cbreak">${cats.map(c => `<li><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span class="nm"><strong>${esc(c.type === 'uns' ? 'Needs a category' : c.name)}</strong><span class="bar"><i style="width:${Math.max(3, c.v / cmax * 100)}%;background:${colOf(c.type)}"></i></span></span>
+      ${cats.length ? treemap(r.cats, r.expenses) + `<ul class="cbreak">${cats.map(c => `<li><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span class="nm"><strong>${esc(c.type === 'uns' ? 'Needs a category' : c.name)}</strong><span class="bar"><i style="width:${Math.max(3, c.v / cmax * 100)}%;background:${colOf(c.type)}"></i></span></span>
         <span class="amt">${fmtINR(c.v)}<small>${r.expenses ? Math.round(c.v / r.expenses * 100) + '%' : ''}</small></span></li>`).join('')}</ul>` : `<div class="empty"><b>Nothing spent yet</b>Expenses you add appear here by category.</div>`}</section>`;
 
     const ovPanel = t.empty ? '' : `<section class="panel" aria-label="Monthly overview"><div class="phead"><div><h2>Monthly overview</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income` : 'Add income to see how much you kept'}${cmp && !cmp.partial && cmp.total.diff ? ` · spending ${cmp.total.diff > 0 ? 'up' : 'down'} ${fmtINR(Math.abs(cmp.total.diff))} ${vsLabel}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
-      <div class="meter" aria-hidden="true"><i style="width:${t.need / base * 100}%;background:var(--need)"></i><i style="width:${t.life / base * 100}%;background:var(--life)"></i><i style="width:${t.uns / base * 100}%;background:var(--uns)"></i><i style="width:${t.save / base * 100}%;background:var(--save)"></i></div>
-      <div class="ov">
+      <div class="ovpics">${gauge(t)}<div class="ov">
         <div class="ovrow"><span><i class="sw" style="background:var(--need)"></i>Necessary</span><span>${delta(cmp && cmp.need, false)} <b>${fmtINR(t.need)}</b></span></div>
         <div class="ovrow"><span><i class="sw" style="background:var(--life)"></i>Lifestyle</span><span>${delta(cmp && cmp.life, false)} <b>${fmtINR(t.life)}</b></span></div>
         ${t.uns ? `<div class="ovrow"><span><i class="sw" style="background:var(--uns)"></i>Needs a category</span><b>${fmtINR(t.uns)}</b></div>` : ''}
         <div class="ovrow"><span><i class="sw" style="background:var(--save)"></i>Savings</span><span>${delta(cmp && cmp.save, true)} <b>${fmtINR(t.save)}</b></span></div>
         <div class="ovrow" style="border-top:1px solid var(--line);padding-top:10px"><span>Available this month</span><b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></div>
-      </div></section>`;
+      </div></div>
+      <div class="meter" aria-hidden="true"><i style="width:${t.need / base * 100}%;background:var(--need)"></i><i style="width:${t.life / base * 100}%;background:var(--life)"></i><i style="width:${t.uns / base * 100}%;background:var(--uns)"></i><i style="width:${t.save / base * 100}%;background:var(--save)"></i></div></section>`;
 
+    const calPanel = t.nExp ? `<section class="panel" aria-label="Spending calendar"><div class="phead"><div><h2>Spending calendar</h2><p>${FULL[m]} · darker days mean more spent</p></div></div>${spendCalendar(y, m)}</section>` : '';
+    const jarPanel = t.income || t.save ? `<section class="panel" aria-label="Savings jar">${moneyJar(t.save, t.income)}</section>` : '';
     const chartPanel = `<section class="panel" aria-label="Income and expenses"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div></div>${incomeVsExpenseChart(y, m)}
       <div class="ckey"><span><i class="ln" style="background:var(--good)"></i>Income</span><span><i class="ln" style="background:var(--bad)"></i>Expenses</span></div></section>`;
 
@@ -315,8 +388,8 @@
     </section>
     ${duePanel}
     <div class="homegrid">
-      <div class="col">${ovPanel}${chartPanel}${catPanel}${cmpPanel}</div>
-      <div class="col">${recentPanel}${famPanel}${limPanel}${homeReport(y, m)}</div>
+      <div class="col">${ovPanel}${chartPanel}${catPanel}${calPanel}${cmpPanel}</div>
+      <div class="col">${jarPanel}${recentPanel}${famPanel}${limPanel}${homeReport(y, m)}</div>
     </div>`;
   }
 
@@ -404,7 +477,9 @@
   function vSavings() {
     const y = ui.year, m = ui.month, list = L.inMonth(S.savings, y, m).sort(byNewest), yt = L.yearTotals(S, y);
     const cats = L.byCat(S, list), tot = L.sum(list);
+    const tm = L.totals(S, y, m);
     return header('Savings', 'month') + `
+    <section class="panel" aria-label="Savings jar">${moneyJar(tot, tm.income)}</section>
     <section class="cards">
       <div class="card"><span class="label"><i class="sw" style="background:var(--save)"></i>${MONTHS[m]} savings</span>${list.length ? `<span class="v">${fmtINR(tot)}</span>` : '<span class="v nil">Not recorded</span>'}<span class="s">${list.length} entr${list.length === 1 ? 'y' : 'ies'}</span></div>
       <div class="card"><span class="label">${y} so far</span><span class="v">${fmtINR(yt.save)}</span><span class="s">From saved entries</span></div>
@@ -525,6 +600,7 @@
     const cats = L.byCat(S, ex), tot = L.sum(ex), anyYear = L.inYear(S.expenses, y).length > 0, anySaveYear = L.inYear(S.savings, y).length > 0;
     return header('Analytics', 'month') + `
     <div class="seg" role="group" aria-label="Period"><button class="${!yr ? 'on' : ''}" data-act="aMode" data-v="month">${FULL[m]}</button><button class="${yr ? 'on' : ''}" data-act="aMode" data-v="year">Full year ${y}</button></div>
+    ${cats.length ? `<section class="panel" aria-label="Spending in coins"><div class="phead"><div><h2>Spending in coins</h2><p>${period} · top categories</p></div></div>${pictogram(cats)}</section>` : ''}
     <section class="panel"><div class="phead"><div><h2>Necessary expenses</h2><p>${period}</p></div></div>
       ${pie(cats.filter(c => c.type === 'need').map(c => ({ label: c.name, v: c.v })), 'No necessary expenses in this period.', 'Necessary expenses by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Lifestyle expenses</h2><p>${period}</p></div></div>
