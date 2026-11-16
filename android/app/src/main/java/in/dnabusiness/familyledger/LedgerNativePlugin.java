@@ -309,4 +309,23 @@ public class LedgerNativePlugin extends Plugin {
             }
         });
     }
+
+    /** Shows a phone notification now (spending limits, the "notifications are on" test). */
+    @PluginMethod
+    public void showNotification(PluginCall call) {
+        Reminders.post(getContext(), call.getString("title", "Vault Tracker"), call.getString("body", ""), call.getString("tag", null));
+        call.resolve();
+    }
+
+    /** Stores upcoming bills; the phone reminds at the given hour on each due day, even when the app is closed. */
+    @PluginMethod
+    public void setReminders(PluginCall call) {
+        try {
+            JSArray items = call.getArray("items", new JSArray());
+            Reminders.save(getContext(), items, call.getInt("hour", 9));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not set reminders: " + e.getMessage());
+        }
+    }
 }

@@ -35,6 +35,12 @@
         </provider>
         <!-- UPI payment detection. Android only binds this after the user grants
              notification access in Settings; the app cannot grant it to itself. -->
+        <receiver android:name=".ReminderReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".UpiNotificationListener"
             android:label="@string/upi_listener_label"
@@ -51,4 +57,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: lets Vault Tracker show "₹450 paid… tap to add" alerts. The user is asked first. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Re-arms the daily 9 AM bill reminder after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

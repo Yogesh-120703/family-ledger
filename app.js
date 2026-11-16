@@ -36,10 +36,11 @@
     try { localStorage.setItem(KEY, JSON.stringify(S)); storageOK = true; }
     catch (e) { storageOK = false; toast('Could not save. Your phone storage may be full.'); }
     scheduleCloud();
+    try { syncReminders(); } catch (e) {}
   }
   /* ---------- online copy for Claude (off until the person connects their own website) ---------- */
   var cloudTimer = null;
-  const APP_VERSION = '2.0';
+  const APP_VERSION = '2.1';
   function scheduleCloud() { try { if (!prefs.cloud || !prefs.cloud.on) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudSend(false), 5000); } catch (e) { /* settings not loaded yet */ } }
   // What goes online: the ledger only. Payment-reading internals and the activity log stay on the phone.
   function cloudSnapshot() { const d = JSON.parse(JSON.stringify(S)); d.upi = { payeeCat: (S.upi && S.upi.payeeCat) || {} }; delete d.log; delete d.limitLog; return d; }
@@ -894,7 +895,7 @@
     const scopeOpts = `<option value="total">Total monthly expenses</option><option value="need">Necessary expenses</option><option value="life">Lifestyle expenses</option>
       <optgroup label="Necessary categories">${activeCats('need').map(c => `<option value="cat:${c.id}">${esc(c.name)}</option>`).join('')}</optgroup>
       <optgroup label="Lifestyle categories">${activeCats('life').map(c => `<option value="cat:${c.id}">${esc(c.name)}</option>`).join('')}</optgroup>`;
-    const notifSupported = 'Notification' in window;
+    const notifSupported = canNotify();
     let hasBackup = false; try { hasBackup = !!localStorage.getItem(BACKUP_KEY); } catch (e) {}
     const full = `
     <section class="panel" id="limits">
@@ -923,7 +924,7 @@
         : '<div class="muted">None yet. Tap + Add, or choose Repeat when you add an expense or savings entry.</div>'}
     </section>
     <section class="panel">
-      <label class="switch"><span><strong>Phone notifications</strong><br><span class="muted" style="font-size:.86rem">${notifSupported ? 'Shows bills due today and limit alerts as phone notifications when you open the app. The app cannot send them while it is fully closed.' : 'Not supported on this browser. In-app reminders still work.'}</span></span><input type="checkbox" data-act="toggleNotify" ${S.notify ? 'checked' : ''} ${notifSupported ? '' : 'disabled'} aria-label="Phone notifications"></label>
+      <label class="switch"><span><strong>Phone notifications</strong><br><span class="muted" style="font-size:.86rem">${notifSupported ? (Native ? 'Reminds you about bills at 9 AM on the due day, even when the app is closed, and alerts you when a spending limit is reached.' : 'Shows bills due today and limit alerts as notifications when you open the app.') : 'Not supported on this browser. In-app reminders still work.'}</span></span><input type="checkbox" data-act="toggleNotify" ${S.notify ? 'checked' : ''} ${notifSupported ? '' : 'disabled'} aria-label="Phone notifications"></label>
     </section>
     <section class="panel">
       <div class="phead"><div><h2>Backup</h2><p>Your data is saved on this phone only. Download a backup copy now and then to keep it safe.</p></div></div>
@@ -1138,12 +1139,9 @@
       <span class="${st.level === 'over' ? 't-over' : 't-reached'}">${st.level === 'over' ? fmtINR(st.spent - st.limit) + ' over the limit' : 'Limit reached. ₹0 remaining.'}</span></div>`).join('')}
       <p>This is a reminder only. Your expense was saved.</p>
       <div class="mfoot"><button class="btn" data-act="goLimits">View limits</button><button class="btn primary" data-act="close">OK</button></div>`);
-    if (S.notify && 'Notification' in window && Notification.permission === 'granted') {
+    if (S.notify) {
       const st = all[0], title = 'Spending limit ' + (st.level === 'over' ? 'exceeded' : 'reached');
-      const body = `${st.label}: ${fmtINR(st.spent)} of ${fmtINR(st.limit)}` + (all.length > 1 ? ` (+${all.length - 1} more)` : '');
-      const fallback = () => { try { new Notification(title, { body, icon: 'icons/icon-192.png' }); } catch (e) {} };
-      if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'icons/icon-192.png', tag: 'limit-' + st.item.id }) : fallback()).catch(fallback);
-      else fallback();
+      sysNotify(title, `${st.label}: ${fmtINR(st.spent)} of ${fmtINR(st.limit)}` + (all.length > 1 ? ` (+${all.length - 1} more)` : ''), 'limit-' + st.item.id);
     }
   }
 
@@ -1413,15 +1411,34 @@
     const rec = { name: r.name, amount: r.amount == null ? '' : r.amount, date: today(), catId: catId || (activeCats(r.kind === 'save' ? 'save' : r.type)[0] || {}).id, subId: catId ? r.subId : null, note: '', paidBy: r.who, by: r.who, type: r.type };
     txForm(r.kind === 'save' ? 'save' : 'exp', rec, { recur: { id: r.id, key } });
   }
+  /* Phone notifications: Android's own system in the app, the browser's on the web. */
+  const canNotify = () => !!Native || ('Notification' in window);
+  function sysNotify(title, body, tag) {
+    if (!S.notify) return;
+    if (Native && Native.showNotification) { Native.showNotification({ title, body, tag: tag || title }).catch(() => {}); return; }
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const fallback = () => { try { new Notification(title, { body, icon: 'icons/icon-192.png' }); } catch (e) {} };
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'icons/icon-192.png', tag }) : fallback()).catch(fallback); else fallback();
+  }
+  // Bills for the next 60 days go to the phone, which reminds at 9 AM on the due day even when the app is closed.
+  let remTimer = null;
+  function syncReminders() {
+    if (!Native || !Native.setReminders) return;
+    clearTimeout(remTimer);
+    remTimer = setTimeout(() => {
+      const items = S.notify ? L.dueList(S, today(), 60).filter(d => d.days >= 0).map(d => ({ date: d.date,
+        title: d.r.name + ' is due today', body: (d.r.amount != null ? fmtINR(d.r.amount) + ' · ' : '') + 'Open Vault Tracker to add it.' })) : [];
+      Native.setReminders({ items, hour: 9 }).catch(() => {});
+    }, 800);
+  }
   function notifyDueToday() {
-    if (!S.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!S.notify || !canNotify()) return;
     const t = today(); if (prefs.dueNotified === t) return;
     const due = L.dueList(S, t, 0); if (!due.length) return;
     prefs.dueNotified = t; savePrefs();
     const title = due.length === 1 ? due[0].r.name + ' is due' : due.length + ' payments are due';
     const body = due.slice(0, 3).map(d => d.r.name + (d.r.amount != null ? ' ' + fmtINR(d.r.amount) : '')).join(', ');
-    const fallback = () => { try { new Notification(title, { body, icon: 'icons/icon-192.png' }); } catch (e) {} };
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(title, { body, icon: 'icons/icon-192.png', tag: 'due-' + t }) : fallback()).catch(fallback); else fallback();
+    sysNotify(title, body, 'due-' + t);
   }
 
   /* ---------- limits ---------- */
@@ -1552,7 +1569,15 @@
     editLimitOk() { const it = S.limits.items.find(x => x.id === ui.target), a = L.parseMoney(q('#lim-edit').value); if (a == null) { q('#lim-edit-err').textContent = 'Enter a limit above ₹0.'; return; } addLog(`Changed limit · ${L.limitLabel(S, it)} ${fmtINR(it.amount)} → ${fmtINR(a)}`); it.amount = a; persist(); closeSheet(); render(); },
     delLimit(el) { const it = S.limits.items.find(x => x.id === el.dataset.id); S.limits.items = S.limits.items.filter(x => x !== it); addLog(`Deleted limit · ${L.limitLabel(S, it)}`); persist(); render(); toast('Limit deleted'); },
     toggleNotify(el) {
-      if (!el.checked) { S.notify = false; persist(); return; }
+      if (!el.checked) { S.notify = false; persist(); syncReminders(); toast('Phone notifications are off.'); return; }
+      if (Native) {
+        Native.requestAlertPermission().then(r => {
+          S.notify = !!(r && r.alerts); persist(); render(); syncReminders();
+          if (S.notify) { sysNotify('Notifications are on', 'Vault Tracker will remind you about bills at 9 AM and when a spending limit is reached.', 'test'); toast('Notifications are on.'); }
+          else toast('Android blocked notifications for Vault Tracker. Allow them in phone Settings → Apps → Vault Tracker → Notifications.');
+        }).catch(() => { el.checked = false; });
+        return;
+      }
       if (!('Notification' in window)) { el.checked = false; return; }
       Notification.requestPermission().then(p => { S.notify = p === 'granted'; persist(); render(); if (p !== 'granted') toast('Notifications are blocked for this app in phone settings. In-app alerts still work.'); }).catch(() => { el.checked = false; });
     },
@@ -1844,6 +1869,7 @@
   } catch (e) { S.upi.queue = []; }
 
   setTimeout(notifyDueToday, 1500);
+  setTimeout(syncReminders, 2000);
   function openReviewFromAlert() {
     pullUpi().then(() => {
       closeSheet();
