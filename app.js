@@ -414,7 +414,7 @@
 
     return header('Home', 'month') + `
     ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Vault Tracker on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
-    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
+    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button></span></div>` : ''}
     ${needsCatPanel()}
     <section class="balance" aria-label="Total family balance">
       <span class="label">Total family balance</span>
@@ -860,7 +860,7 @@
   }
   async function lockKey(k) {
     const msg = document.getElementById('lk-msg'), dots = document.getElementById('lk-dots'); if (!msg) return;
-    if (k === 'forgot') { msg.textContent = 'For your safety the PIN cannot be reset here. Clear Vault Tracker’s storage in Android Settings → Apps, then restore your backup.'; return; }
+    if (k === 'forgot') { msg.textContent = 'For your safety the PIN cannot be reset here. Clear Vault Tracker’s storage in Android Settings → Apps to start again.'; return; }
     if (k === 'bio') return tryBio();
     if (Date.now() < lockWaitUntil) { msg.textContent = 'Too many tries. Wait ' + Math.ceil((lockWaitUntil - Date.now()) / 1000) + ' seconds.'; return; }
     const n = prefs.lock.len || 4;
@@ -926,12 +926,8 @@
       <label class="switch"><span><strong>Phone notifications</strong><br><span class="muted" style="font-size:.86rem">${notifSupported ? 'Shows bills due today and limit alerts as phone notifications when you open the app. The app cannot send them while it is fully closed.' : 'Not supported on this browser. In-app reminders still work.'}</span></span><input type="checkbox" data-act="toggleNotify" ${S.notify ? 'checked' : ''} ${notifSupported ? '' : 'disabled'} aria-label="Phone notifications"></label>
     </section>
     <section class="panel">
-      <div class="phead"><div><h2>Backup and move data</h2><p>Data is saved on this phone only. It does not sync to other phones.</p></div></div>
+      <div class="phead"><div><h2>Backup</h2><p>Your data is saved on this phone only. Download a backup copy now and then to keep it safe.</p></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="exportJSON">Download backup</button><button class="btn" data-act="copyJSON">Copy backup</button><button class="btn" data-act="csv">Export ${y} CSV</button></div>
-      <label class="field"><span>Import from the web version or a backup file</span><input type="file" id="importFile" accept="application/json,.json,.txt"></label>
-      <label class="field"><span>…or paste the copied data</span><textarea id="importText" class="paste" placeholder='Paste data starting with {"people":…'></textarea></label>
-      <div class="err" id="imp-err"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="importPaste">Import pasted data</button>${hasBackup ? '<button class="btn ghost" data-act="undoImport">Undo last import</button>' : ''}</div>
       ${deferredInstall ? '<button class="btn" data-act="install">Install app on this phone</button>' : ''}
     </section>
     <section class="panel"><div class="phead"><div><h2>Activity log</h2><p>Every change, newest first</p></div></div>
