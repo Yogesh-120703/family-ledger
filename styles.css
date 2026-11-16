@@ -354,9 +354,10 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 .cd b{font-weight:500;color:var(--muted);line-height:1.1}
 .cd small{font-size:.58rem;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;max-width:100%;overflow:hidden}
 .cd.blank{background:transparent}
-.cd.l1{background:rgba(224,120,120,.14)} .cd.l2{background:rgba(224,120,120,.28)} .cd.l3{background:rgba(224,120,120,.45)} .cd.l4{background:rgba(224,120,120,.66)}
-.cd.l3 b,.cd.l4 b{color:var(--ink)}
-.cd.today{border-color:var(--accent)}
+.cd.l1{background:rgba(212,175,110,.12);border-color:rgba(212,175,110,.16)} .cd.l2{background:rgba(212,175,110,.26);border-color:rgba(212,175,110,.3)}
+.cd.l3{background:rgba(212,175,110,.48);border-color:rgba(229,208,165,.5)} .cd.l4{background:linear-gradient(160deg,#E5D0A5,#C6A15B);border-color:#E5D0A5}
+.cd.l3 b{color:var(--ink)} .cd.l4 b,.cd.l4 small{color:#17191D;font-weight:600}
+.cd.today{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
 .cal .ckey{align-items:center;gap:6px;font-size:.74rem}
 .cal .ckey .cd{width:14px;height:14px;aspect-ratio:auto;border-radius:4px;display:inline-block}
 .picto{display:grid;gap:12px}
@@ -383,15 +384,6 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 .balance .v{letter-spacing:-.03em}
 
 /* gold coin stacks */
-.vault{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 8px}
-@media (min-width:640px){.vault{grid-template-columns:repeat(6,minmax(0,1fr))}}
-.vstack{display:grid;justify-items:center;text-align:center;gap:4px;min-width:0}
-.vstack svg{width:72px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
-.vstack .cicon{width:32px;height:32px;margin-top:2px}
-.vstack .cicon svg{width:15px;height:15px;filter:none}
-.vstack strong{font-weight:500;font-size:.8rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vstack span{font-size:.78rem;color:var(--accent-3);font-variant-numeric:tabular-nums}
-.vnote{margin:0;font-size:.8rem;text-align:center} .vnote b{color:var(--accent)}
 
 /* motion: quiet, short, and off when the phone asks for less */
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -465,6 +457,28 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
   .stmt .ssum div{background:#fff}
   .stmt tr{break-inside:avoid}
 }
+
+/* tap a chart to see its value */
+#ctip{position:fixed;z-index:60;pointer-events:none;background:var(--raised);border:1px solid var(--accent-line);border-radius:10px;padding:7px 11px;display:grid;gap:1px;box-shadow:0 8px 20px rgba(0,0,0,.4);font-size:.78rem;max-width:240px}
+#ctip span{color:var(--muted)} #ctip b{color:var(--accent-3);font-weight:600;font-variant-numeric:tabular-nums;font-size:.9rem}
+#app svg circle,#app svg rect{cursor:pointer}
+#app svg .tipon{stroke:var(--ink);stroke-width:2}
+#app svg circle.tipon:not(.hit){r:6}
+.donut circle.tipon{stroke-width:34!important;filter:brightness(1.15)}
+
+/* custom date range */
+.rangebar{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rangebar input{color-scheme:dark}
+
+/* settings links to their own pages */
+.navrows{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.navrow{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:transparent;padding:16px 18px;min-height:64px}
+.navrow:last-child{border-bottom:0}
+.navrow:active,.navrow:hover{background:var(--raised)}
+.navrow span{display:grid;gap:2px;min-width:0}
+.navrow strong{font-weight:600}
+.navrow small{color:var(--muted);font-size:.82rem}
+.navrow svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* laptop and tablet: navigation becomes a side menu */
 @media (min-width:1000px){

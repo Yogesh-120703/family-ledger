@@ -100,8 +100,8 @@
       ? `<div class="stepper" role="group" aria-label="Year"><button data-act="stepY" data-d="-1" aria-label="Previous year">‹</button><strong>${ui.year}</strong><button data-act="stepY" data-d="1" aria-label="Next year">›</button></div>`
       : mode === 'month'
         ? `<div class="stepper" role="group" aria-label="Month"><button data-act="stepM" data-d="-1" aria-label="Previous month">‹</button><strong>${MONTHS[ui.month]} ${ui.year}</strong><button data-act="stepM" data-d="1" aria-label="Next month">›</button></div>` : '';
-    const left = ui.view === 'settings' || ui.view === 'review' || ui.view === 'statement'
-      ? `<div style="display:flex;align-items:center;gap:10px"><button class="iconbtn" data-act="go" data-v="${ui.prevView || 'home'}" aria-label="Back">${svg('back')}</button><h1>${title}</h1></div>`
+    const left = ['settings', 'review', 'statement', 'limits', 'recurring'].includes(ui.view)
+      ? `<div style="display:flex;align-items:center;gap:10px"><button class="iconbtn" data-act="go" data-v="${ui.view === 'limits' || ui.view === 'recurring' ? (ui.fromView || 'settings') : (ui.prevView || 'home')}" aria-label="Back">${svg('back')}</button><h1>${title}</h1></div>`
       : `<div><div class="brand">Vault Tracker</div><h1>${title}</h1></div>`;
     return `<div class="top">${left}<div class="tools">${step}
     ${ui.view !== 'settings' && ui.view !== 'review' ? `<button class="iconbtn" data-act="go" data-v="settings" aria-label="Settings">${svg('gear')}</button>` : ''}</div></div>`;
@@ -110,7 +110,7 @@
     renderNav();
     const v = ui.view;
     let html = v === 'home' ? vHome() : v === 'income' ? vIncome() : v === 'expenses' ? vExpenses() : v === 'savings' ? vSavings()
-      : v === 'analytics' ? vAnalytics() : v === 'reports' ? vReports() : v === 'statement' ? vStatement() : vSettings();
+      : v === 'analytics' ? vAnalytics() : v === 'reports' ? vReports() : v === 'statement' ? vStatement() : v === 'limits' ? vSettings('limits') : v === 'recurring' ? vSettings('recurring') : vSettings();
     if (!storageOK) html = html.replace('</div></div>', '</div></div><div class="err-banner">Changes are not being saved on this phone. Check that the browser allows site storage, then try again.</div>');
     const fab = v === 'home' || v === 'expenses' ? `<button class="fab" data-act="newExp"><span>+</span>Expense</button>`
       : v === 'savings' ? `<button class="fab" data-act="newSave"><span>+</span>Savings</button>` : '';
@@ -195,7 +195,7 @@
   }
 
   /* ---------- routing (Android back button moves between screens) ---------- */
-  const VALID = VIEWS.map(v => v[0]).concat('settings', 'statement');
+  const VALID = VIEWS.map(v => v[0]).concat('settings', 'statement', 'limits', 'recurring');
   function route() {
     const v = (location.hash || '#home').slice(1);
     const next = VALID.includes(v) ? v : 'home';
@@ -204,7 +204,7 @@
       history.replaceState(null, '', '#income');
       return guardDirty(() => { location.hash = next; });
     }
-    const sub = v => v === 'settings' || v === 'review' || v === 'statement';
+    const sub = v => v === 'settings' || v === 'review' || v === 'statement' || v === 'limits' || v === 'recurring';
     if (sub(next) && ui.view !== next && !sub(ui.view)) ui.prevView = ui.view;
     ui.view = next;
     if (next !== 'income') freshDraft();
@@ -324,25 +324,6 @@
     return `<div class="cal"><div class="cw">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells.join('')}</div>
       <div class="ckey"><span>Less</span><i class="cd l1"></i><i class="cd l2"></i><i class="cd l3"></i><i class="cd l4"></i><span>More</span>${busiest ? `<span style="margin-left:auto">Busiest: <b style="color:var(--ink)">${+busiest[0]} ${MONTHS[m]}</b> · ${fmtINR(busiest[1])}</span>` : ''}</div></div>`;
   }
-  // Gold coin stacks: each coin is a fixed amount; a taller stack means more money.
-  function pictogram(cats) {
-    const list = cats.filter(c => c.v > 0).slice(0, 6); if (!list.length) return '';
-    const max = list[0].v, unit = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(u => max / u <= 16) || 100000;
-    const stack = n => { const coins = Math.max(1, Math.round(n)), H = 150, ch = 7, rx = 26, ry = 8, cx = 40; let g = '';
-      for (let k = 0; k < coins; k++) { const y = H - 12 - k * ch;
-        g += `<path d="M${cx - rx} ${y} v${-ch + 1.5} a${rx} ${ry} 0 0 0 ${rx * 2} 0 v${ch - 1.5} a${rx} ${ry} 0 0 1 ${-rx * 2} 0z" fill="url(#cside)" stroke="#8C6F3C" stroke-width=".6"/>`; }
-      const ty = H - 12 - coins * ch + 1.5;
-      g += `<ellipse cx="${cx}" cy="${ty}" rx="${rx}" ry="${ry}" fill="url(#ctop)" stroke="#B8924F" stroke-width=".8"/><ellipse cx="${cx}" cy="${ty}" rx="${rx - 5}" ry="${ry - 2}" fill="none" stroke="#F3E6C8" stroke-opacity=".55" stroke-width=".8"/>
-        <text x="${cx}" y="${ty + 3.2}" text-anchor="middle" font-size="9" font-weight="700" fill="#8C6F3C">₹</text>`;
-      return `<svg viewBox="0 0 80 ${H}" aria-hidden="true">${g}</svg>`; };
-    return `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-      <linearGradient id="cside" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9E7E45"/><stop offset=".35" stop-color="#E5D0A5"/><stop offset=".6" stop-color="#D4AF6E"/><stop offset="1" stop-color="#8C6F3C"/></linearGradient>
-      <linearGradient id="ctop" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E6C8"/><stop offset=".5" stop-color="#D9B979"/><stop offset="1" stop-color="#B8924F"/></linearGradient></defs></svg>
-      <div class="vault">${list.map(c => `<div class="vstack" role="img" aria-label="${esc(c.name)}: ${fmtINR(c.v)}, about ${Math.round(c.v / unit * 10) / 10} coins">${stack(c.v / unit)}
-        <i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><strong>${esc(c.name)}</strong><span>${fmtINR(c.v)}</span></div>`).join('')}</div>
-      <p class="muted vnote">Each coin = <b>${fmtINR(unit)}</b></p>`;
-  }
-
   /* ---------- panels shared by Home, Analytics and Reports ---------- */
   function cmpOf(y, m) { return L.compareMonths(S, y, m, today()); }
   function deltaOf(cmp, pair, upIsGood) { if (!cmp || !pair || pair.diff === 0) return ''; const up = pair.diff > 0, good = up === upIsGood;
@@ -366,12 +347,26 @@
       <div class="fam">${fam.map(x => `<div class="fammem"><div class="pt"><span class="av" aria-hidden="true">${esc(initials(x.p.name))}</span><strong>${esc(x.p.name)}</strong></div>
         <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
   }
-  function famYear(y) {
+  /* ---------- custom date range ---------- */
+  function rangeOf() {
+    const t = today(), f = ui.rFrom || mk(ui.year, ui.month) + '-01', to = ui.rTo || t;
+    return f <= to ? { from: f, to } : { from: to, to: f };
+  }
+  const inRange = (list, R) => list.filter(e => e.date >= R.from && e.date <= R.to);
+  const fmtDay = d => { const [yy, mm, dd] = d.split('-'); return +dd + ' ' + MONTHS[+mm - 1] + ' ' + yy; };
+  const rangeLabel = R => fmtDay(R.from) + ' – ' + fmtDay(R.to);
+  // income is entered per month, so a range counts the income of every month it touches
+  function incomeInRange(R) { return Object.entries(S.records).filter(([k]) => k >= R.from.slice(0, 7) && k <= R.to.slice(0, 7)).reduce((a, [, rec]) => a + Object.values(rec).reduce((b, e) => b + L.amt(e), 0), 0); }
+  function rangeInputs(prefix) {
+    const R = rangeOf();
+    return `<div class="rangebar"><label class="field"><span>From</span><input type="date" id="${prefix}-from" value="${R.from}" max="${today()}"></label><label class="field"><span>To</span><input type="date" id="${prefix}-to" value="${R.to}" max="${today()}"></label></div>`;
+  }
+  function famRange(R, label) {
     const people = active(); if (!people.length) return '';
-    const inc = p => Object.entries(S.records).filter(([k]) => k.slice(0, 4) === String(y)).reduce((a, [, rec]) => a + (rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0), 0);
-    const rows = people.map(p => ({ p, inc: inc(p), spent: L.sum(L.inYear(S.expenses, y).filter(e => e.paidBy === p.id)), saved: L.sum(L.inYear(S.savings, y).filter(e => e.by === p.id)) }));
+    const inc = p => Object.entries(S.records).filter(([k]) => k >= R.from.slice(0, 7) && k <= R.to.slice(0, 7)).reduce((a, [, rec]) => a + (rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0), 0);
+    const rows = people.map(p => ({ p, inc: inc(p), spent: L.sum(inRange(S.expenses, R).filter(e => e.paidBy === p.id)), saved: L.sum(inRange(S.savings, R).filter(e => e.by === p.id)) }));
     const fmax = Math.max(1, ...rows.map(x => Math.max(x.inc, x.spent, x.saved))), fbar = (v, c) => `<span class="fb"><i style="width:${v ? Math.max(3, v / fmax * 100) : 0}%;background:${c}"></i></span>`;
-    return `<section class="panel"><div class="phead"><div><h2>Family members</h2><p>Full year ${y}</p></div></div><div class="fam">${rows.map(x => `<div class="fammem"><div class="pt"><strong>${esc(x.p.name)}</strong></div>
+    return `<section class="panel"><div class="phead"><div><h2>Family members</h2><p>${label}</p></div></div><div class="fam">${rows.map(x => `<div class="fammem"><div class="pt"><strong>${esc(x.p.name)}</strong></div>
       <dl><div><dt>Income</dt><dd class="pos">${fmtINR(x.inc)}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="neg">${fmtINR(x.spent)}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="color:var(--accent)">${fmtINR(x.saved)}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
   }
   function cmpPanel(y, m) {
@@ -596,7 +591,7 @@
     let parts = items.slice().sort((a, b) => b.v - a.v).map((x, i) => ({ ...x, color: COLORS[i % COLORS.length] }));
     if (parts.length > 7) { const rest = parts.slice(6); parts = parts.slice(0, 6); parts.push({ label: 'Others (' + rest.length + ')', v: rest.reduce((a, x) => a + x.v, 0), color: '#8A94A0' }); }
     const R = 70, C = 2 * Math.PI * R; let off = 0;
-    const segs = parts.map(x => { const len = x.v / total * C; const s = `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${x.color}" stroke-width="28" stroke-dasharray="${Math.max(len - (parts.length > 1 ? 2 : 0), 0.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`; off += len; return s; }).join('');
+    const segs = parts.map(x => { const len = x.v / total * C; const s = `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${x.color}" stroke-width="28" stroke-dasharray="${Math.max(len - (parts.length > 1 ? 2 : 0), 0.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"><title>${esc(x.label)}: ${fmtINR(x.v)} (${pct(x.v, total)}%)</title></circle>`; off += len; return s; }).join('');
     return `<div class="donutwrap"><svg class="donut" viewBox="0 0 200 200" role="img" aria-label="${esc(label)}"><circle r="${R}" cx="100" cy="100" fill="none" stroke="var(--sunk)" stroke-width="28"/>${segs}
       <text x="100" y="96" text-anchor="middle" fill="var(--muted)" font-size="11" font-family="var(--body)">TOTAL</text><text x="100" y="117" text-anchor="middle" fill="var(--ink)" font-size="18" font-family="var(--mono)">${short(total)}</text></svg>
       <table class="legend">${parts.map(x => `<tr><td><span class="nm"><i class="dot" style="background:${x.color}"></i>${esc(x.label)}</span></td><td class="n">${fmtINR(x.v)}</td><td class="p">${pct(x.v, total)}%</td></tr>`).join('')}</table></div>`;
@@ -605,7 +600,7 @@
     const s = L.yearSeries(S, y), max = Math.max(...s.map(x => x.total));
     const W = 680, H = 240, Lp = 54, T = 12, B = 28, R = 8, { top, step } = scale(max), f = frame(W, H, Lp, T, B, R, top, step), cw = (W - Lp - R) / 12, bw = Math.min(13, cw * .24);
     let b = ''; s.forEach((x, i) => { const cx = Lp + i * cw + cw / 2;
-      [[x.need, 'var(--need)', 'Necessary'], [x.life, 'var(--life)', 'Lifestyle'], [x.total, 'var(--ink)', 'Total']].forEach(([v, c, n], j) => { if (v > 0) { const yy = f.sy(v); b += `<rect x="${cx - 1.5 * bw - 1 + j * (bw + 1)}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="${c}" rx="2"><title>${MONTHS[i]} ${n}: ${fmtINR(v)}</title></rect>`; } }); });
+      [[x.need, 'var(--need)', 'Necessary'], [x.life, 'var(--life)', 'Lifestyle'], [x.total, 'var(--muted)', 'Total']].forEach(([v, c, n], j) => { if (v > 0) { const yy = f.sy(v); b += `<rect x="${cx - 1.5 * bw - 1 + j * (bw + 1)}" y="${yy}" width="${bw}" height="${f.sy(0) - yy}" fill="${c}" rx="2"><title>${MONTHS[i]} ${n}: ${fmtINR(v)}</title></rect>`; } }); });
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly spending ${y}">${f.svg}${b}${monthLabels(W, H, Lp, cw)}</svg>`;
   }
   function lastMonthIdx(y, s, key) { let last = -1; s.forEach((x, i) => { if (key(x)) last = i; }); const n = new Date(); if (y === n.getFullYear()) last = Math.max(last, n.getMonth()); else if (y < n.getFullYear() && last >= 0) last = 11; return last; }
@@ -613,7 +608,7 @@
     const s = L.yearSeries(S, y), last = lastMonthIdx(y, s, x => x.nExp), max = Math.max(...s.map(x => x.total));
     const W = 680, H = 240, Lp = 54, T = 14, B = 28, R = 12, { top, step } = scale(max), f = frame(W, H, Lp, T, B, R, top, step), cw = (W - Lp - R) / 12, px = i => Lp + i * cw + cw / 2;
     const line = (k, c, w) => { const pts = s.slice(0, last + 1).map((x, i) => [px(i), f.sy(x[k])]); if (!pts.length) return '';
-      return `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="round"/>` + pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${i === last ? 4.5 : 3}" fill="${c}"><title>${MONTHS[i]}: ${fmtINR(s[i][k])}</title></circle>`).join(''); };
+      return `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="round"/>` + pts.map((p, i) => `<circle class="hit" cx="${p[0]}" cy="${p[1]}" r="13" fill="transparent"><title>${MONTHS[i]} · ${k === 'total' ? 'Total' : k === 'need' ? 'Necessary' : 'Lifestyle'}: ${fmtINR(s[i][k])}</title></circle><circle cx="${p[0]}" cy="${p[1]}" r="${i === last ? 4.5 : 3}" fill="${c}" pointer-events="none"><title>${MONTHS[i]}: ${fmtINR(s[i][k])}</title></circle>`).join(''); };
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spending trend ${y}">${f.svg}${line('need', 'var(--need)', 2)}${line('life', 'var(--life)', 2)}${line('total', 'var(--ink)', 2.5)}${monthLabels(W, H, Lp, cw)}</svg>`;
   }
   function savingsBars(y) {
@@ -640,21 +635,21 @@
 
   /* ---------- ANALYTICS ---------- */
   function vAnalytics() {
-    const y = ui.year, m = ui.month, yr = ui.aMode === 'year';
-    const ex = yr ? L.inYear(S.expenses, y) : L.inMonth(S.expenses, y, m), sv = yr ? L.inYear(S.savings, y) : L.inMonth(S.savings, y, m);
-    const period = yr ? 'Full year ' + y : FULL[m] + ' ' + y;
+    const y = ui.year, m = ui.month, yr = ui.aMode === 'year', cu = ui.aMode === 'custom', R = rangeOf();
+    const ex = cu ? inRange(S.expenses, R) : yr ? L.inYear(S.expenses, y) : L.inMonth(S.expenses, y, m), sv = cu ? inRange(S.savings, R) : yr ? L.inYear(S.savings, y) : L.inMonth(S.savings, y, m);
+    const period = cu ? rangeLabel(R) : yr ? 'Full year ' + y : FULL[m] + ' ' + y;
     const cats = L.byCat(S, ex), tot = L.sum(ex), anyYear = L.inYear(S.expenses, y).length > 0, anySaveYear = L.inYear(S.savings, y).length > 0;
     return header('Analytics', 'month') + `
-    <div class="seg" role="group" aria-label="Period"><button class="${!yr ? 'on' : ''}" data-act="aMode" data-v="month">${FULL[m]}</button><button class="${yr ? 'on' : ''}" data-act="aMode" data-v="year">Full year ${y}</button></div>
+    <div class="seg" role="group" aria-label="Period"><button class="${!yr && !cu ? 'on' : ''}" data-act="aMode" data-v="month">${FULL[m]}</button><button class="${yr ? 'on' : ''}" data-act="aMode" data-v="year">Full year ${y}</button><button class="${cu ? 'on' : ''}" data-act="aMode" data-v="custom">Custom</button></div>
+    ${cu ? rangeInputs('ar') + `<section class="kpis" aria-label="${period}"><div class="card inc"><span class="label">Income</span><span class="v">${richINR(incomeInRange(R))}</span><span class="s">Whole months in range</span></div><div class="card exp"><span class="label">Expenses</span><span class="v">${richINR(tot)}</span><span class="s">${ex.length} records</span></div><div class="card sav"><span class="label">Savings</span><span class="v">${richINR(L.sum(sv))}</span><span class="s">${sv.length} entries</span></div></section>` : ''}
     ${chartPanel(y, m)}
-    ${cats.length ? `<section class="panel" aria-label="Spending in gold coins"><div class="phead"><div><h2>Spending in gold coins</h2><p>${period} · top categories</p></div></div>${pictogram(cats)}</section>` : ''}
     <section class="panel"><div class="phead"><div><h2>Necessary expenses</h2><p>${period}</p></div></div>
       ${pie(cats.filter(c => c.type === 'need').map(c => ({ label: c.name, v: c.v })), 'No necessary expenses in this period.', 'Necessary expenses by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Lifestyle expenses</h2><p>${period}</p></div></div>
       ${pie(cats.filter(c => c.type === 'life').map(c => ({ label: c.name, v: c.v })), 'No lifestyle expenses in this period.', 'Lifestyle expenses by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Top spending categories</h2><p>${period} · ${fmtINR(tot)} spent</p></div></div>
       ${cats.length ? topList(cats, tot) : `<div class="empty"><b>No data</b>Add expenses to see where the money goes.</div>`}</section>
-    <section class="panel"><div class="phead"><div><h2>Monthly spending ${y}</h2></div>${key([['Necessary', 'var(--need)'], ['Lifestyle', 'var(--life)'], ['Total', 'var(--ink)']])}</div>
+    <section class="panel"><div class="phead"><div><h2>Monthly spending ${y}</h2></div>${key([['Necessary', 'var(--need)'], ['Lifestyle', 'var(--life)'], ['Total', 'var(--muted)']])}</div>
       ${anyYear ? `<div class="chartbox">${groupedBars(y)}</div>` : `<div class="empty"><b>No expenses in ${y}</b>This chart fills in as you add expenses.</div>`}</section>
     <section class="panel"><div class="phead"><div><h2>Spending trend ${y}</h2></div>${key([['Total', 'var(--ink)', 1], ['Necessary', 'var(--need)', 1], ['Lifestyle', 'var(--life)', 1]])}</div>
       ${anyYear ? `<div class="chartbox">${trendLines(y)}</div>` : `<div class="empty"><b>No expenses in ${y}</b>Add expenses to see the trend.</div>`}</section>
@@ -662,7 +657,7 @@
       ${pie(L.byCat(S, sv).map(c => ({ label: c.name, v: c.v })), 'No savings recorded in this period.', 'Savings by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Monthly savings ${y}</h2><p>Actual savings recorded each month</p></div></div>
       ${anySaveYear ? `<div class="chartbox">${savingsBars(y)}</div>` : `<div class="empty"><b>No savings in ${y}</b>Record savings on the Savings screen.</div>`}</section>
-    ${!yr ? calPanel(y, m) + cmpPanel(y, m) + famPanel(y, m) + limPanel(y, m) : famYear(y)}`;
+    ${cu ? famRange(R, period) : !yr ? calPanel(y, m) + cmpPanel(y, m) + famPanel(y, m) + limPanel(y, m) : famRange({ from: y + '-01-01', to: y + '-12-31' }, 'Full year ' + y)}`;
   }
 
   /* ---------- REPORTS ---------- */
@@ -778,38 +773,67 @@
   }
   /* ---------- private monthly statement (saved as PDF) ---------- */
   function vStatement() {
-    const y = ui.year, m = ui.month, t = L.totals(S, y, m), days = new Date(y, m + 1, 0).getDate(), rb = L.runningBalance(S, y, m);
-    const ex = L.inMonth(S.expenses, y, m).slice().sort((a, b) => a.date.localeCompare(b.date) || (a.created || 0) - (b.created || 0));
-    const sv = L.inMonth(S.savings, y, m).slice().sort((a, b) => a.date.localeCompare(b.date)), rec = S.records[mk(y, m)] || {}, cats = L.byCat(S, ex);
-    const people = S.people.filter(p => !p.archived || rec[p.id]);
-    const row = (cells) => `<tr>${cells.map((c, i) => `<td${i === cells.length - 1 ? ' class="n"' : ''}>${c}</td>`).join('')}</tr>`;
-    const td = today(), issued = (+td.slice(8)) + ' ' + FULL[+td.slice(5, 7) - 1] + ' ' + td.slice(0, 4);
-    return header('Statement', 'month') + `
-    <div class="noprint stbar"><p class="muted">Private statement for ${FULL[m]} ${y}. Save it as a PDF to keep, print or share.</p><button class="btn primary" data-act="stmtPdf">Save as PDF</button></div>
-    <article class="stmt" aria-label="Statement for ${FULL[m]} ${y}">
+    const cu = ui.stMode === 'custom', y = ui.year, m = ui.month;
+    const R = cu ? rangeOf() : { from: mk(y, m) + '-01', to: mk(y, m) + '-' + pad(new Date(y, m + 1, 0).getDate()) };
+    const ex = inRange(S.expenses, R).sort((a, b) => a.date.localeCompare(b.date) || (a.created || 0) - (b.created || 0));
+    const sv = inRange(S.savings, R).sort((a, b) => a.date.localeCompare(b.date)), cats = L.byCat(S, ex);
+    const sumT = k => L.sum(ex.filter(e => e.type === k)), need = sumT('need'), life = sumT('life'), uns = sumT('uns'), total = L.sum(ex), save = L.sum(sv);
+    const months = Object.keys(S.records).filter(k => k >= R.from.slice(0, 7) && k <= R.to.slice(0, 7)).sort();
+    const income = incomeInRange(R), rb = cu ? null : L.runningBalance(S, y, m), bal = income - total - save;
+    const people = S.people.filter(p => !p.archived || months.some(k => (S.records[k] || {})[p.id]));
+    const row = cells => `<tr>${cells.map((c, i) => `<td${i === cells.length - 1 ? ' class="n"' : ''}>${c}</td>`).join('')}</tr>`;
+    const td = today(), period = cu ? rangeLabel(R) : `1 – ${+R.to.slice(8)} ${FULL[m]} ${y}`, title = cu ? period : FULL[m] + ' ' + y;
+    return header('Statement', cu ? null : 'month') + `
+    <div class="seg noprint" role="group" aria-label="Statement period"><button class="${!cu ? 'on' : ''}" data-act="stMode" data-v="month">One month</button><button class="${cu ? 'on' : ''}" data-act="stMode" data-v="custom">Custom range</button></div>
+    ${cu ? `<div class="noprint">${rangeInputs('sr')}</div>` : ''}
+    <div class="noprint stbar"><p class="muted">Private statement for ${title}. Save it as a PDF to keep, print or share.</p><button class="btn primary" data-act="stmtPdf">Save as PDF</button></div>
+    <article class="stmt" aria-label="Statement for ${title}">
       <header class="sh"><div class="sbr"><i>${LOGO_MARK}</i><div><b>Vault Tracker</b><span>Family Wealth · Private statement</span></div></div>
-        <div class="sp"><span>Statement period</span><b>1 – ${days} ${FULL[m]} ${y}</b><span>Issued ${issued}</span></div></header>
+        <div class="sp"><span>Statement period</span><b>${period}</b><span>Issued ${fmtDay(td)}</span></div></header>
       <section class="ssum">
-        <div><span>Income</span><b>${fmtINR(t.income)}</b></div><div><span>Expenses</span><b>${fmtINR(t.total)}</b></div>
-        <div><span>Savings</span><b>${fmtINR(t.save)}</b></div><div class="gold"><span>${rb.started ? 'Closing balance' : 'Balance this month'}</span><b>${fmtINR(rb.started ? rb.total : t.bal)}</b></div></section>
-      <div class="ssplit"><span>Necessary <b>${fmtINR(t.need)}</b></span><span>Lifestyle <b>${fmtINR(t.life)}</b></span>${t.uns ? `<span>Not sorted <b>${fmtINR(t.uns)}</b></span>` : ''}<span>Kept <b>${t.income ? pctTxt(L.pctOf(t.income - t.total, t.income)) : '—'}</b> of income</span></div>
+        <div><span>Income</span><b>${fmtINR(income)}</b></div><div><span>Expenses</span><b>${fmtINR(total)}</b></div>
+        <div><span>Savings</span><b>${fmtINR(save)}</b></div><div class="gold"><span>${rb && rb.started ? 'Closing balance' : 'Balance for the period'}</span><b>${fmtINR(rb && rb.started ? rb.total : bal)}</b></div></section>
+      <div class="ssplit"><span>Necessary <b>${fmtINR(need)}</b></span><span>Lifestyle <b>${fmtINR(life)}</b></span>${uns ? `<span>Not sorted <b>${fmtINR(uns)}</b></span>` : ''}<span>Kept <b>${income ? pctTxt(L.pctOf(income - total, income)) : '—'}</b> of income</span></div>
       <h3>Income by family member</h3>
+      ${cu ? `<p class="sem">Income is entered per month, so this counts the whole of ${months.length ? months.map(k => FULL[+k.slice(5) - 1] + ' ' + k.slice(0, 4)).join(', ') : 'no months'}.</p>` : ''}
       <table><thead><tr><th>Member</th><th>Note</th><th class="n">Amount</th></tr></thead><tbody>
-        ${people.map(p => { const e = rec[p.id]; return row([esc(p.name), e ? (e.none ? 'No income this month' : esc(e.note || '')) : 'Not entered', e && !e.none ? fmtINR(L.amt(e)) : '—']); }).join('')}
-        <tr class="tot"><td colspan="2">Total income</td><td class="n">${fmtINR(t.income)}</td></tr></tbody></table>
+        ${people.map(p => { const vals = months.map(k => (S.records[k] || {})[p.id]).filter(Boolean), amt = vals.filter(e => !e.none).reduce((a, e) => a + L.amt(e), 0);
+          const note = !vals.length ? 'Not entered' : vals.every(e => e.none) ? 'No income' : (!cu && vals[0].note ? esc(vals[0].note) : '');
+          return row([esc(p.name), note, amt ? fmtINR(amt) : '—']); }).join('')}
+        <tr class="tot"><td colspan="2">Total income</td><td class="n">${fmtINR(income)}</td></tr></tbody></table>
       <h3>Spending by category</h3>
       ${cats.length ? `<table><thead><tr><th>Category</th><th>Type</th><th class="n">Share</th><th class="n">Amount</th></tr></thead><tbody>
-        ${cats.map(c => row([esc(c.type === 'uns' ? 'Needs a category' : c.name), KINDS[c.type] || '', t.total ? Math.round(c.v / t.total * 100) + '%' : '', fmtINR(c.v)])).join('')}
-        <tr class="tot"><td colspan="3">Total expenses</td><td class="n">${fmtINR(t.total)}</td></tr></tbody></table>` : '<p class="sem">No expenses in this period.</p>'}
+        ${cats.map(c => row([esc(c.type === 'uns' ? 'Needs a category' : c.name), KINDS[c.type] || '', total ? Math.round(c.v / total * 100) + '%' : '', fmtINR(c.v)])).join('')}
+        <tr class="tot"><td colspan="3">Total expenses</td><td class="n">${fmtINR(total)}</td></tr></tbody></table>` : '<p class="sem">No expenses in this period.</p>'}
       <h3>Transactions</h3>
       ${ex.length ? `<table class="tx2"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="hs">Paid by</th><th class="hs">Mode</th><th class="n">Amount</th></tr></thead><tbody>
-        ${ex.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.name)}${e.payee && e.payee !== e.name ? `<small>${esc(e.payee)}</small>` : ''}</td><td>${esc(e.type === 'uns' ? 'Needs a category' : L.catName(S, e.catId))}</td><td class="hs">${esc(L.personName(S, e.paidBy, e.paidName))}</td><td class="hs">${esc(e.mode || '—')}</td><td class="n">${fmtINR(e.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="sem">No transactions in this period.</p>'}
+        ${ex.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.name)}${e.payee && e.payee !== e.name ? `<small>${esc(e.payee)}</small>` : ''}</td><td>${esc(e.type === 'uns' ? 'Needs a category' : L.catName(S, e.catId))}${e.subId && L.subName(S, e.catId, e.subId) ? `<small>${esc(L.subName(S, e.catId, e.subId))}</small>` : ''}</td><td class="hs">${esc(L.personName(S, e.paidBy, e.paidName))}</td><td class="hs">${esc(e.mode || '—')}</td><td class="n">${fmtINR(e.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="sem">No transactions in this period.</p>'}
       ${sv.length ? `<h3>Savings</h3><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="n">Amount</th></tr></thead><tbody>
         ${sv.map(e => row([fmtDate(e.date), esc(e.name), esc(L.catName(S, e.catId)), fmtINR(e.amount)])).join('')}
-        <tr class="tot"><td colspan="3">Total saved</td><td class="n">${fmtINR(t.save)}</td></tr></tbody></table>` : ''}
-      <footer class="sf"><span>Vault Tracker · Private and confidential</span><span>${ex.length} transaction${ex.length === 1 ? '' : 's'} · ${FULL[m]} ${y}</span></footer>
+        <tr class="tot"><td colspan="3">Total saved</td><td class="n">${fmtINR(save)}</td></tr></tbody></table>` : ''}
+      <footer class="sf"><span>Vault Tracker · Private and confidential</span><span>${ex.length} transaction${ex.length === 1 ? '' : 's'} · ${period}</span></footer>
     </article>`;
   }
+
+  /* ---------- charts: tap (or hover) any bar, dot or slice to see its value ---------- */
+  function showTip(el, x, y) {
+    const t = el.querySelector(':scope > title'); if (!t) return false;
+    let tip = document.getElementById('ctip'); if (!tip) { tip = document.createElement('div'); tip.id = 'ctip'; tip.setAttribute('role', 'status'); document.body.appendChild(tip); }
+    document.querySelectorAll('.tipon').forEach(n => n.classList.remove('tipon'));
+    el.classList.add('tipon'); if (el.classList.contains('hit') && el.nextElementSibling) el.nextElementSibling.classList.add('tipon');
+    const [a, b] = t.textContent.split(/:\s(.+)/); tip.innerHTML = b ? `<span>${esc(a)}</span><b>${esc(b)}</b>` : `<b>${esc(a)}</b>`;
+    tip.hidden = false; const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x - w / 2)) + 'px'; tip.style.top = Math.max(8, y - h - 14) + 'px';
+    return true;
+  }
+  function hideTip() { const tip = document.getElementById('ctip'); if (tip) tip.hidden = true; document.querySelectorAll('.tipon').forEach(n => n.classList.remove('tipon')); }
+  document.addEventListener('click', e => {
+    const el = e.target.closest && e.target.closest('#app svg circle, #app svg rect, #app svg path');
+    if (el && !el.closest('[data-act]') && showTip(el, e.clientX, e.clientY)) return;
+    hideTip();
+  });
+  window.addEventListener('scroll', hideTip, { passive: true });
+  window.addEventListener('hashchange', hideTip);
 
   /* ---------- app lock (PIN, with fingerprint on phones that have it) ---------- */
   const LOCK_AWAY_MS = 60000, FP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v4M8.5 8.5a5 5 0 0 1 8.5 3.5v2M7 12v2a5 5 0 0 0 2 4M12 7a5 5 0 0 0-5 5M17 16a8 8 0 0 1-1 3M4.5 9a8.5 8.5 0 0 1 15 0M3.5 13a8.5 8.5 0 0 0 1.5 5M15 19.5a8.5 8.5 0 0 0 1-2.5"/></svg>';
@@ -864,7 +888,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="lockNow">Lock now</button><button class="btn" data-act="lockSet">Change PIN</button><button class="btn ghost" data-act="lockOff">Turn off</button></div></section>`;
   }
 
-  function vSettings() {
+  function vSettings(page) {
     const y = ui.year, m = ui.month, k = ui.catTab;
     const list = S.cats.filter(c => c.kind === k);
     const scopeOpts = `<option value="total">Total monthly expenses</option><option value="need">Necessary expenses</option><option value="life">Lifestyle expenses</option>
@@ -872,7 +896,7 @@
       <optgroup label="Lifestyle categories">${activeCats('life').map(c => `<option value="cat:${c.id}">${esc(c.name)}</option>`).join('')}</optgroup>`;
     const notifSupported = 'Notification' in window;
     let hasBackup = false; try { hasBackup = !!localStorage.getItem(BACKUP_KEY); } catch (e) {}
-    return header('Settings') + `
+    const full = `
     <section class="panel" id="limits">
       <label class="switch"><span><strong>Spending Limit Alerts</strong><br><span class="muted" style="font-size:.86rem">Warn me when spending reaches a limit. Never blocks entries.</span></span><input type="checkbox" data-act="toggleLimits" ${S.limits.enabled ? 'checked' : ''} aria-label="Spending Limit Alerts"></label>
       ${S.limits.enabled ? `
@@ -930,6 +954,19 @@
     <section class="panel"><div class="phead"><div><h2>Activity log</h2><p>Every change, newest first</p></div></div>
       <ul class="hist">${(ui.showAllLog ? S.log : S.log.slice(0, 10)).map(l => `<li><time>${fmtTime(l.t)}</time><span>${esc(l.msg)}</span></li>`).join('')}</ul>
       ${S.log.length > 10 ? `<button class="btn ghost" data-act="showLog">${ui.showAllLog ? 'Show less' : 'Show all ' + S.log.length}</button>` : ''}</section>`;
+    // Spending limits and repeating payments each have their own page; Settings links to them.
+    const cut = id => { const a = full.indexOf(`<section class="panel" id="${id}">`), b = full.indexOf('</section>', a) + 10; return [a, b]; };
+    const [la, lb] = cut('limits'), limitsHTML = full.slice(la, lb);
+    const [ra, rbx] = cut('recurring'), recurHTML = full.slice(ra, rbx);
+    if (page === 'limits') return header('Spending limits') + limitsHTML;
+    if (page === 'recurring') return header('Repeating payments') + recurHTML;
+    const st = L.limitStatus(S, y, m), due = L.dueList(S, today(), 7);
+    const navRow = (v, title, sub) => `<button class="navrow" data-act="go" data-v="${v}"><span><strong>${title}</strong><small>${sub}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`;
+    const rest = full.slice(0, la) + full.slice(lb, ra) + full.slice(rbx);
+    return header('Settings') + `<nav class="navrows" aria-label="More settings">
+      ${navRow('limits', 'Spending limits', S.limits && S.limits.items && S.limits.items.length ? S.limits.items.length + ' limit' + (S.limits.items.length === 1 ? '' : 's') + (st.filter(x => x.level !== 'ok').length ? ' · ' + st.filter(x => x.level !== 'ok').length + ' need attention' : '') : 'Get a warning before spending too much')}
+      ${navRow('recurring', 'Repeating payments', (S.recurring || []).length ? (S.recurring || []).length + ' set up' + (due.length ? ' · ' + due.length + ' due this week' : '') : 'Rent, EMI, bills that come back every month')}
+    </nav>` + rest;
   }
   function catRow(c) {
     const uses = L.catUses(S, c.id), open = ui.openCat === c.id;
@@ -1412,7 +1449,7 @@
   /* ---------- actions ---------- */
   const A = {
     go(el) { const v = el.dataset.v; if (layer.innerHTML) closeSheet(); if (location.hash.slice(1) === v) { route(); return; } location.hash = v; },
-    goLimits() { closeSheet(); ui.prevView = ui.view === 'settings' ? ui.prevView : ui.view; location.hash = 'settings'; setTimeout(() => { const e = document.getElementById('limits'); if (e) e.scrollIntoView(); }, 50); },
+    goLimits() { closeSheet(); ui.fromView = ui.view === 'settings' ? 'settings' : ui.view; location.hash = 'limits'; },
     stepM(el) { guardDirty(() => { let m = ui.month + +el.dataset.d, y = ui.year; if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; } ui.month = m; ui.year = y; freshDraft(); render(); }); },
     stepY(el) { guardDirty(() => { ui.year += +el.dataset.d; freshDraft(); render(); }); },
     xf(el) { ui.xf = el.dataset.f; render(); },
@@ -1560,7 +1597,8 @@
       addLog('Savings goal set: ' + (S.saveGoal.mode === 'amount' ? fmtINR(S.saveGoal.amount) + ' a month' : S.saveGoal.pct + '% of income'));
       persist(); closeSheet(); render(); toast('Savings goal saved.');
     },
-    stmtPdf() { const t = 'Vault Tracker statement ' + FULL[ui.month] + ' ' + ui.year; if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
+    stMode(el) { ui.stMode = el.dataset.v; render(); },
+    stmtPdf() { const t = 'Vault Tracker statement ' + (ui.stMode === 'custom' ? rangeLabel(rangeOf()) : FULL[ui.month] + ' ' + ui.year); if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
     lockSet() {
       const change = lockOn();
       sheet(`<h3>${change ? 'Change your PIN' : 'Set a PIN'}</h3><p>4 to 6 digits. You will need it every time you open Vault Tracker.</p>
@@ -1683,7 +1721,7 @@
     openAccess() { if (Native) Native.openNotificationAccess().catch(() => toast('Open Settings → Notifications → Notification access.')); },
     openAppInfo() { if (Native) Native.openAppInfo().catch(() => {}); },
     upiCheckNow() { pullUpi().then(() => toast('Checked for new payments')); },
-    goRecurring() { closeSheet(); if (ui.view !== 'settings') ui.prevView = ui.view; location.hash = 'settings'; setTimeout(() => { const e = document.getElementById('recurring'); if (e) e.scrollIntoView(); }, 50); },
+    goRecurring() { closeSheet(); ui.fromView = ui.view === 'settings' ? 'settings' : ui.view; location.hash = 'recurring'; },
     newRecurring() { if (!active().length) return toast('Add a family member first'); txForm('exp', null, { repeat: 1 }); },
     dueOpen(el) { openRecur(el.dataset.id, el.dataset.k); },
     dueAdd(el) {
@@ -1750,6 +1788,7 @@
   document.addEventListener('change', ev => {
     const el = ev.target;
     if (el.matches('input[type=checkbox][data-act]')) { const f = A[el.dataset.act]; if (f) f(el, ev); return; }
+    if (/^(ar|sr)-(from|to)$/.test(el.id)) { if (!el.value) return; if (el.id.endsWith('from')) ui.rFrom = el.value; else ui.rTo = el.value; render(); return; }
     if (el.id === 'lock-bio') { prefs.lock.bio = el.checked; savePrefs(); toast(el.checked ? 'Fingerprint unlock is on.' : 'Fingerprint unlock is off. The PIN still works.'); return; }
     if (el.id === 'f-same' && ui.form) {
       // "Same person as before?": fill in that person's category; on Save this payment is linked to them
