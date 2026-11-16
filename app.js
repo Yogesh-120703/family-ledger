@@ -923,25 +923,8 @@
         : '<div class="muted">None yet. Tap + Add, or choose Repeat when you add an expense or savings entry.</div>'}
     </section>
     <section class="panel">
-      <div class="phead"><div><h2>Starting balance</h2><p>Money you had in cash and bank at the start of a month. Each month's leftover balance is added on top of it.</p></div></div>
-      <div class="frow"><label class="field"><span>Amount (₹)</span><input id="op-amt" inputmode="decimal" value="${S.opening ? S.opening.amount : ''}" placeholder="0"></label>
-        <label class="field"><span>From the start of</span><input type="month" id="op-month" value="${S.opening ? S.opening.month : (L.firstMonthKey(S) || mk(y, m))}"></label></div>
-      <div class="err" id="op-err"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="saveOpening">Save starting balance</button>${S.opening ? '<button class="btn ghost" data-act="clearOpening">Clear</button>' : ''}</div>
-    </section>
-    <section class="panel">
       <label class="switch"><span><strong>Phone notifications</strong><br><span class="muted" style="font-size:.86rem">${notifSupported ? 'Shows bills due today and limit alerts as phone notifications when you open the app. The app cannot send them while it is fully closed.' : 'Not supported on this browser. In-app reminders still work.'}</span></span><input type="checkbox" data-act="toggleNotify" ${S.notify ? 'checked' : ''} ${notifSupported ? '' : 'disabled'} aria-label="Phone notifications"></label>
     </section>
-    <section class="panel" id="cats">
-      <div class="phead"><div><h2>Categories</h2><p>Rename, add subcategories, archive or remove. Records are never lost.</p></div></div>
-      <div class="seg" role="group" aria-label="Category list">${Object.entries(KINDS).map(([kk, l]) => `<button class="${k === kk ? 'on' : ''}" data-act="catTab" data-v="${kk}">${l}</button>`).join('')}</div>
-      <div class="inline"><input id="newcat" placeholder="New ${KINDS[k].toLowerCase()} category" maxlength="40"><button class="btn primary" data-act="addCat">Add</button></div>
-      <div class="err" id="cat-err"></div>
-      <div>${list.filter(c => !c.archived).map(catRow).join('')}</div>
-      ${list.some(c => c.archived) ? `<span class="label">Archived · hidden from new entries, kept in history</span><div>${list.filter(c => c.archived).map(catRow).join('')}</div>` : ''}
-    </section>
-    ${lockPanel()}
-    ${cloudPanel()}
     <section class="panel">
       <div class="phead"><div><h2>Backup and move data</h2><p>Data is saved on this phone only. It does not sync to other phones.</p></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="exportJSON">Download backup</button><button class="btn" data-act="copyJSON">Copy backup</button><button class="btn" data-act="csv">Export ${y} CSV</button></div>
@@ -963,7 +946,7 @@
     const st = L.limitStatus(S, y, m), due = L.dueList(S, today(), 7);
     const navRow = (v, title, sub) => `<button class="navrow" data-act="go" data-v="${v}"><span><strong>${title}</strong><small>${sub}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`;
     const rest = full.slice(0, la) + full.slice(lb, ra) + full.slice(rbx);
-    return header('Settings') + `<nav class="navrows" aria-label="More settings">
+    return header('Settings') + lockPanel() + `<nav class="navrows" aria-label="More settings">
       ${navRow('limits', 'Spending limits', S.limits && S.limits.items && S.limits.items.length ? S.limits.items.length + ' limit' + (S.limits.items.length === 1 ? '' : 's') + (st.filter(x => x.level !== 'ok').length ? ' · ' + st.filter(x => x.level !== 'ok').length + ' need attention' : '') : 'Get a warning before spending too much')}
       ${navRow('recurring', 'Repeating payments', (S.recurring || []).length ? (S.recurring || []).length + ' set up' + (due.length ? ' · ' + due.length + ' due this week' : '') : 'Rent, EMI, bills that come back every month')}
     </nav>` + rest;
