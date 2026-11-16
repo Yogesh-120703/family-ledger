@@ -102,7 +102,7 @@ final class UpiAlerter {
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_upi)
-            .setColor(GREEN)
+            .setColor(GOLD)
             .setContentTitle(title)
             .setContentText(body)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -123,7 +123,7 @@ final class UpiAlerter {
         }
     }
 
-    static final int GREEN = 0xFF1E7A55;
+    static final int GOLD = 0xFFD4AF6E;
 
     private static String sourceName(String pkg) {
         if (pkg == null) return "Bank SMS";
@@ -137,29 +137,30 @@ final class UpiAlerter {
         }
     }
 
-    /** Draws the payment picture: ₹ badge, who was paid, the amount in large type, time and source. */
+    /** Draws the payment picture in grey and champagne gold: ₹ badge, who was paid, the amount, time and source. */
     static Bitmap drawCard(String amount, String payee, String source, long at, boolean added) {
         int W = 1080, H = 520;
         Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         Typeface bold = Typeface.create(Typeface.DEFAULT, Typeface.BOLD), reg = Typeface.DEFAULT;
-        p.setColor(Color.WHITE); c.drawRoundRect(new RectF(0, 0, W, H), 40, 40, p);
-        p.setColor(GREEN); c.drawRect(0, 0, 22, H, p);
-        p.setColor(0x221E7A55); c.drawRoundRect(new RectF(70, 70, 240, 240), 40, 40, p);
-        p.setColor(GREEN); p.setTypeface(bold); p.setTextSize(110); p.setTextAlign(Paint.Align.CENTER); c.drawText("₹", 155, 195, p);
+        p.setColor(0xFF262A30); c.drawRoundRect(new RectF(0, 0, W, H), 40, 40, p);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setColor(0x73D4AF6E); c.drawRoundRect(new RectF(1.5f, 1.5f, W - 1.5f, H - 1.5f), 39, 39, p);
+        p.setStyle(Paint.Style.FILL); p.setColor(0xFF2D3239); c.drawRoundRect(new RectF(70, 70, 240, 240), 40, 40, p);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(4); p.setColor(GOLD); c.drawCircle(155, 155, 62, p);
+        p.setStyle(Paint.Style.FILL); p.setColor(GOLD); p.setTypeface(bold); p.setTextSize(84); p.setTextAlign(Paint.Align.CENTER); c.drawText("₹", 155, 184, p);
         p.setTextAlign(Paint.Align.LEFT);
-        p.setColor(0xFF5B6E63); p.setTypeface(reg); p.setTextSize(38); c.drawText("Paid to", 280, 110, p);
+        p.setColor(0xFFA5A9B0); p.setTypeface(reg); p.setTextSize(36); c.drawText("Paid to", 280, 112, p);
         String who = payee == null || payee.isEmpty() ? "UPI payment" : payee;
         if (who.length() > 22) who = who.substring(0, 21) + "…";
-        p.setColor(0xFF13241B); p.setTypeface(bold); p.setTextSize(58); c.drawText(who, 280, 180, p);
-        p.setColor(GREEN); p.setTypeface(reg); p.setTextSize(40); c.drawText("Family Ledger", 280, 238, p);
-        p.setColor(0xFF13241B); p.setTypeface(bold); p.setTextSize(110); c.drawText(amount, 70, 400, p);
-        p.setColor(0xFF5B6E63); p.setTypeface(reg); p.setTextSize(34);
+        p.setColor(0xFFF5F5F2); p.setTypeface(bold); p.setTextSize(56); c.drawText(who, 280, 180, p);
+        p.setColor(GOLD); p.setTypeface(reg); p.setTextSize(38); c.drawText("Family Ledger", 280, 238, p);
+        p.setColor(0xFFF5F5F2); p.setTypeface(bold); p.setTextSize(104); c.drawText(amount, 70, 400, p);
+        p.setColor(0xFF777D86); p.setTypeface(reg); p.setTextSize(32);
         c.drawText(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(at)) + " · " + source, 70, 460, p);
-        p.setColor(GREEN); c.drawRoundRect(new RectF(W - 330, 360, W - 70, 430), 35, 35, p);
-        p.setColor(Color.WHITE); p.setTypeface(bold); p.setTextSize(34); p.setTextAlign(Paint.Align.CENTER);
-        c.drawText(added ? "Added ✓" : "Check it", W - 200, 407, p);
+        p.setColor(GOLD); c.drawRoundRect(new RectF(W - 330, 360, W - 70, 430), 18, 18, p);
+        p.setColor(0xFF17191D); p.setTypeface(bold); p.setTextSize(32); p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(added ? "Added ✓" : "Check it", W - 200, 406, p);
         return bmp;
     }
 

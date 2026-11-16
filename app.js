@@ -13,6 +13,10 @@
   /* ---------- formatting ---------- */
   const today = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   const fmtINR = n => { const a = Math.abs(n); const s = a.toLocaleString('en-IN', { minimumFractionDigits: a % 1 ? 2 : 0, maximumFractionDigits: 2 }); return (n < 0 ? '−' : '') + '₹' + s; };
+  // Statement-style amount: small ₹, whole rupees, small paise.
+  const richINR = n => { const a = Math.abs(n), w = Math.floor(a), p = Math.round((a - w) * 100);
+    return `<span class="rich">${n < 0 ? '<span class="sg">−</span>' : ''}<span class="cur">₹</span>${w.toLocaleString('en-IN')}<span class="ps">.${String(p).padStart(2, '0')}</span></span>`; };
+  const LOGO_MARK = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1D1F24"/><circle cx="256" cy="256" r="178" fill="none" stroke="#D4AF6E" stroke-width="8"/><circle cx="256" cy="256" r="160" fill="none" stroke="#D4AF6E" stroke-opacity=".28" stroke-width="2"/><path fill="#D4AF6E" d="M336.54 195.5H303.75C302.01 185.36 298.53 176.33 293.14 168.57L328.15 168.73L336.54 138H184.49L175.46 173.48H219.02C241.35 173.48 254.34 181.87 259.72 195.5H183.85L175.46 225.91H260.83C255.92 241.9 241.67 251.41 219.02 251.41H178.79L179.1 276.91L259.88 374H307.4V371.94L234.54 282.45L235.96 282.13C277.94 277.07 298.69 256.32 303.6 225.91H328.15Z"/></svg>';
   const plain = n => (n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString('en-IN');
   const short = n => { const a = Math.abs(n), s = n < 0 ? '−' : ''; return a >= 1e7 ? s + '₹' + (a / 1e7).toFixed(1).replace(/\.0$/, '') + 'Cr' : a >= 1e5 ? s + '₹' + (a / 1e5).toFixed(1).replace(/\.0$/, '') + 'L' : a >= 1e3 ? s + '₹' + (a / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : s + '₹' + Math.round(a); };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -88,7 +92,7 @@
   const app = document.getElementById('app'), navEl = document.getElementById('nav'), layer = document.getElementById('layer');
   const svg = (k, cls) => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ' class="' + cls + '"' : ''}>${ICON[k]}</svg>`;
   function renderNav() {
-    if (!navEl.parentNode.querySelector('.brandside')) navEl.insertAdjacentHTML('beforebegin', '<div class="brandside"><i>₹</i>Family Ledger</div>');
+    if (!navEl.parentNode.querySelector('.brandside')) navEl.insertAdjacentHTML('beforebegin', '<div class="brandside"><i>' + LOGO_MARK + '</i>Family Ledger</div>');
     navEl.innerHTML = VIEWS.map(([k, l]) => `<li><button data-act="go" data-v="${k}" ${ui.view === k ? 'aria-current="page"' : ''}>${svg(k)}${l}</button></li>`).join('');
   }
   function header(title, mode) {
@@ -96,7 +100,7 @@
       ? `<div class="stepper" role="group" aria-label="Year"><button data-act="stepY" data-d="-1" aria-label="Previous year">‹</button><strong>${ui.year}</strong><button data-act="stepY" data-d="1" aria-label="Next year">›</button></div>`
       : mode === 'month'
         ? `<div class="stepper" role="group" aria-label="Month"><button data-act="stepM" data-d="-1" aria-label="Previous month">‹</button><strong>${MONTHS[ui.month]} ${ui.year}</strong><button data-act="stepM" data-d="1" aria-label="Next month">›</button></div>` : '';
-    const left = ui.view === 'settings' || ui.view === 'review'
+    const left = ui.view === 'settings' || ui.view === 'review' || ui.view === 'statement'
       ? `<div style="display:flex;align-items:center;gap:10px"><button class="iconbtn" data-act="go" data-v="${ui.prevView || 'home'}" aria-label="Back">${svg('back')}</button><h1>${title}</h1></div>`
       : `<div><div class="brand">Family Ledger</div><h1>${title}</h1></div>`;
     return `<div class="top">${left}<div class="tools">${step}
@@ -106,12 +110,23 @@
     renderNav();
     const v = ui.view;
     let html = v === 'home' ? vHome() : v === 'income' ? vIncome() : v === 'expenses' ? vExpenses() : v === 'savings' ? vSavings()
-      : v === 'analytics' ? vAnalytics() : v === 'reports' ? vReports() : vSettings();
+      : v === 'analytics' ? vAnalytics() : v === 'reports' ? vReports() : v === 'statement' ? vStatement() : vSettings();
     if (!storageOK) html = html.replace('</div></div>', '</div></div><div class="err-banner">Changes are not being saved on this phone. Check that the browser allows site storage, then try again.</div>');
     const fab = v === 'home' || v === 'expenses' ? `<button class="fab" data-act="newExp"><span>+</span>Expense</button>`
       : v === 'savings' ? `<button class="fab" data-act="newSave"><span>+</span>Savings</button>` : '';
     app.innerHTML = html + fab;
     app.querySelectorAll('canvas.mpic').forEach(c => { try { drawMonthCard(c, L.monthReport(S, +c.dataset.y, +c.dataset.m)); } catch (e) {} });
+    countUp();
+  }
+  /* The family balance counts up to its new value; skipped when the phone asks for less motion. */
+  const calm = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+  function countUp() {
+    const el = app.querySelector('[data-count]'); if (!el) return;
+    const to = +el.dataset.count, from = ui.shownBal == null ? 0 : ui.shownBal; ui.shownBal = to;
+    if (calm() || from === to) return;
+    const t0 = performance.now(), dur = 900, ease = x => 1 - Math.pow(1 - x, 3);
+    const step = now => { const k = Math.min(1, (now - t0) / dur), v = from + (to - from) * ease(k); if (!el.isConnected) return; el.innerHTML = richINR(k < 1 ? Math.round(v) : to); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
   }
 
   /* ---------- pictures: the month at a glance, and a payment card (also used for the phone alert) ---------- */
@@ -175,7 +190,7 @@
   }
 
   /* ---------- routing (Android back button moves between screens) ---------- */
-  const VALID = VIEWS.map(v => v[0]).concat('settings');
+  const VALID = VIEWS.map(v => v[0]).concat('settings', 'statement');
   function route() {
     const v = (location.hash || '#home').slice(1);
     const next = VALID.includes(v) ? v : 'home';
@@ -184,10 +199,12 @@
       history.replaceState(null, '', '#income');
       return guardDirty(() => { location.hash = next; });
     }
-    if ((next === 'settings' || next === 'review') && ui.view !== next && ui.view !== 'settings' && ui.view !== 'review') ui.prevView = ui.view;
+    const sub = v => v === 'settings' || v === 'review' || v === 'statement';
+    if (sub(next) && ui.view !== next && !sub(ui.view)) ui.prevView = ui.view;
     ui.view = next;
     if (next !== 'income') freshDraft();
     render(); window.scrollTo(0, 0);
+    if (!calm()) { app.classList.remove('enter'); void app.offsetWidth; app.classList.add('enter'); }
   }
   window.addEventListener('hashchange', route);
   window.addEventListener('popstate', () => { if (layer.innerHTML) closeSheet(); });
@@ -298,14 +315,23 @@
     return `<div class="cal"><div class="cw">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<span>${x}</span>`).join('')}</div><div class="cg">${cells.join('')}</div>
       <div class="ckey"><span>Less</span><i class="cd l1"></i><i class="cd l2"></i><i class="cd l3"></i><i class="cd l4"></i><span>More</span>${busiest ? `<span style="margin-left:auto">Busiest: <b style="color:var(--ink)">${+busiest[0]} ${MONTHS[m]}</b> · ${fmtINR(busiest[1])}</span>` : ''}</div></div>`;
   }
-  // Icon counting rows: each coin is a fixed amount.
+  // Gold coin stacks: each coin is a fixed amount; a taller stack means more money.
   function pictogram(cats) {
     const list = cats.filter(c => c.v > 0).slice(0, 6); if (!list.length) return '';
-    const max = list[0].v, unit = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(u => max / u <= 20) || 100000;
-    const coin = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 8h6M9 11h6M9.5 8c3.5 0 3.5 6 0 6l4 4"/></svg>';
-    return `<p class="muted" style="margin:0;font-size:.84rem">Each coin = <b style="color:var(--accent)">${fmtINR(unit)}</b></p><div class="picto">${list.map(c => { const n = c.v / unit, full = Math.floor(n), part = n - full;
-      return `<div class="pr"><div class="pl"><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span><strong>${esc(c.name)}</strong><small>${fmtINR(c.v)}</small></span></div>
-        <div class="coins" role="img" aria-label="${esc(c.name)}: about ${Math.round(n * 10) / 10} coins">${Array.from({ length: full }, () => `<i>${coin}</i>`).join('')}${part >= .15 ? `<i class="part" style="--p:${Math.round(part * 100)}%">${coin}</i>` : ''}${!full && part < .15 ? '<span class="muted" style="font-size:.78rem">less than one coin</span>' : ''}</div></div>`; }).join('')}</div>`;
+    const max = list[0].v, unit = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(u => max / u <= 16) || 100000;
+    const stack = n => { const coins = Math.max(1, Math.round(n)), H = 150, ch = 7, rx = 26, ry = 8, cx = 40; let g = '';
+      for (let k = 0; k < coins; k++) { const y = H - 12 - k * ch;
+        g += `<path d="M${cx - rx} ${y} v${-ch + 1.5} a${rx} ${ry} 0 0 0 ${rx * 2} 0 v${ch - 1.5} a${rx} ${ry} 0 0 1 ${-rx * 2} 0z" fill="url(#cside)" stroke="#8C6F3C" stroke-width=".6"/>`; }
+      const ty = H - 12 - coins * ch + 1.5;
+      g += `<ellipse cx="${cx}" cy="${ty}" rx="${rx}" ry="${ry}" fill="url(#ctop)" stroke="#B8924F" stroke-width=".8"/><ellipse cx="${cx}" cy="${ty}" rx="${rx - 5}" ry="${ry - 2}" fill="none" stroke="#F3E6C8" stroke-opacity=".55" stroke-width=".8"/>
+        <text x="${cx}" y="${ty + 3.2}" text-anchor="middle" font-size="9" font-weight="700" fill="#8C6F3C">₹</text>`;
+      return `<svg viewBox="0 0 80 ${H}" aria-hidden="true">${g}</svg>`; };
+    return `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <linearGradient id="cside" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9E7E45"/><stop offset=".35" stop-color="#E5D0A5"/><stop offset=".6" stop-color="#D4AF6E"/><stop offset="1" stop-color="#8C6F3C"/></linearGradient>
+      <linearGradient id="ctop" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3E6C8"/><stop offset=".5" stop-color="#D9B979"/><stop offset="1" stop-color="#B8924F"/></linearGradient></defs></svg>
+      <div class="vault">${list.map(c => `<div class="vstack" role="img" aria-label="${esc(c.name)}: ${fmtINR(c.v)}, about ${Math.round(c.v / unit * 10) / 10} coins">${stack(c.v / unit)}
+        <i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><strong>${esc(c.name)}</strong><span>${fmtINR(c.v)}</span></div>`).join('')}</div>
+      <p class="muted vnote">Each coin = <b>${fmtINR(unit)}</b></p>`;
   }
 
   function vHome() {
@@ -320,7 +346,7 @@
       return `<span class="delta ${good ? 'pos' : 'neg'}">${up ? '▲' : '▼'} ${fmtINR(Math.abs(pair.diff))}</span>`; };
     const vsLabel = cmp ? (cmp.partial ? `vs 1–${cmp.cutDay} ${MONTHS[cmp.pm]}` : `vs ${MONTHS[cmp.pm]}`) : '';
     const isEmpty = !S.expenses.length && !S.savings.length && !Object.keys(S.records).length;
-    const kpi = (cls, label, v, has, sub) => `<div class="card ${cls}"><span class="label">${label}</span>${has ? `<span class="v">${fmtINR(v)}</span>` : `<span class="v nil">Not recorded</span>`}<span class="s">${sub}</span></div>`;
+    const kpi = (cls, label, v, has, sub) => `<div class="card ${cls}"><span class="label">${label}</span>${has ? `<span class="v">${richINR(v)}</span>` : `<span class="v nil">Not recorded</span>`}<span class="s">${sub}</span></div>`;
     const total = rb.started ? rb.total : t.bal;
 
     // family members this month: income, what they paid, what they saved
@@ -378,7 +404,7 @@
     <section class="balance" aria-label="Total family balance">
       <span class="label">Total family balance</span>
       ${t.empty && !rb.started ? `<span class="v" style="color:var(--faint);font-size:1.5rem">No records yet</span><span class="sub">Add income, expenses or savings for ${FULL[m]}.</span>`
-        : `<span class="v ${total < 0 ? 'neg' : ''}">${fmtINR(total)}</span>
+        : `<span class="v ${total < 0 ? 'neg' : ''}" data-count="${total}">${richINR(total)}</span>
       <span class="sub">${rb.started ? `<span>This month <b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></span><span>Earlier months <b class="${rb.carried < 0 ? 'neg' : ''}">${fmtINR(rb.carried)}</b></span>` : `<span>${FULL[m]} ${y}</span><span>Income − expenses − savings</span>`}</span>`}
     </section>
     <section class="kpis" aria-label="This month">
@@ -600,7 +626,7 @@
     const cats = L.byCat(S, ex), tot = L.sum(ex), anyYear = L.inYear(S.expenses, y).length > 0, anySaveYear = L.inYear(S.savings, y).length > 0;
     return header('Analytics', 'month') + `
     <div class="seg" role="group" aria-label="Period"><button class="${!yr ? 'on' : ''}" data-act="aMode" data-v="month">${FULL[m]}</button><button class="${yr ? 'on' : ''}" data-act="aMode" data-v="year">Full year ${y}</button></div>
-    ${cats.length ? `<section class="panel" aria-label="Spending in coins"><div class="phead"><div><h2>Spending in coins</h2><p>${period} · top categories</p></div></div>${pictogram(cats)}</section>` : ''}
+    ${cats.length ? `<section class="panel" aria-label="Spending in gold coins"><div class="phead"><div><h2>Spending in gold coins</h2><p>${period} · top categories</p></div></div>${pictogram(cats)}</section>` : ''}
     <section class="panel"><div class="phead"><div><h2>Necessary expenses</h2><p>${period}</p></div></div>
       ${pie(cats.filter(c => c.type === 'need').map(c => ({ label: c.name, v: c.v })), 'No necessary expenses in this period.', 'Necessary expenses by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Lifestyle expenses</h2><p>${period}</p></div></div>
@@ -686,7 +712,7 @@
     const tile = (l, v, sub, cls) => `<div class="card"><span class="label">${l}</span><span class="v ${cls || ''}">${fmtINR(v)}</span><span class="s">${sub}</span></div>`;
     const log = S.limitLog.filter(x => x.month.slice(0, 4) === String(y));
     const modeSeg = `<div class="seg noprint" role="tablist" aria-label="Report type"><button role="tab" class="${ui.repMode !== 'year' ? 'on' : ''}" data-act="repMode" data-v="month">Monthly</button><button role="tab" class="${ui.repMode === 'year' ? 'on' : ''}" data-act="repMode" data-v="year">Yearly</button></div>`;
-    if (ui.repMode !== 'year') return header('Monthly report', 'month') + modeSeg + vMonthReport();
+    if (ui.repMode !== 'year') return header('Monthly report', 'month') + modeSeg + `<div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="go" data-v="statement">Monthly statement (PDF)</button></div>` + vMonthReport();
     return header('Annual report', 'year') + modeSeg + `
     <div class="noprint" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="csv">Export CSV</button><button class="btn" data-act="print">Print / Save PDF</button></div>
     <section class="cards" aria-label="Annual totals">
@@ -728,6 +754,94 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">${addr ? '<button class="btn primary" data-act="cloudCopy">Copy address</button>' : ''}<button class="btn" data-act="cloudSendNow">Send now</button><button class="btn ghost" data-act="cloudOff">Turn off</button></div>
       <p class="muted" style="margin:0;font-size:.82rem">Website: ${esc(c.url)}. Keep the Claude address private: anyone with it can read your ledger.</p></section>`;
   }
+  /* ---------- private monthly statement (saved as PDF) ---------- */
+  function vStatement() {
+    const y = ui.year, m = ui.month, t = L.totals(S, y, m), days = new Date(y, m + 1, 0).getDate(), rb = L.runningBalance(S, y, m);
+    const ex = L.inMonth(S.expenses, y, m).slice().sort((a, b) => a.date.localeCompare(b.date) || (a.created || 0) - (b.created || 0));
+    const sv = L.inMonth(S.savings, y, m).slice().sort((a, b) => a.date.localeCompare(b.date)), rec = S.records[mk(y, m)] || {}, cats = L.byCat(S, ex);
+    const people = S.people.filter(p => !p.archived || rec[p.id]);
+    const row = (cells) => `<tr>${cells.map((c, i) => `<td${i === cells.length - 1 ? ' class="n"' : ''}>${c}</td>`).join('')}</tr>`;
+    const td = today(), issued = (+td.slice(8)) + ' ' + FULL[+td.slice(5, 7) - 1] + ' ' + td.slice(0, 4);
+    return header('Statement', 'month') + `
+    <div class="noprint stbar"><p class="muted">Private statement for ${FULL[m]} ${y}. Save it as a PDF to keep, print or share.</p><button class="btn primary" data-act="stmtPdf">Save as PDF</button></div>
+    <article class="stmt" aria-label="Statement for ${FULL[m]} ${y}">
+      <header class="sh"><div class="sbr"><i>${LOGO_MARK}</i><div><b>Family Ledger</b><span>Private family statement</span></div></div>
+        <div class="sp"><span>Statement period</span><b>1 – ${days} ${FULL[m]} ${y}</b><span>Issued ${issued}</span></div></header>
+      <section class="ssum">
+        <div><span>Income</span><b>${fmtINR(t.income)}</b></div><div><span>Expenses</span><b>${fmtINR(t.total)}</b></div>
+        <div><span>Savings</span><b>${fmtINR(t.save)}</b></div><div class="gold"><span>${rb.started ? 'Closing balance' : 'Balance this month'}</span><b>${fmtINR(rb.started ? rb.total : t.bal)}</b></div></section>
+      <div class="ssplit"><span>Necessary <b>${fmtINR(t.need)}</b></span><span>Lifestyle <b>${fmtINR(t.life)}</b></span>${t.uns ? `<span>Not sorted <b>${fmtINR(t.uns)}</b></span>` : ''}<span>Kept <b>${t.income ? pctTxt(L.pctOf(t.income - t.total, t.income)) : '—'}</b> of income</span></div>
+      <h3>Income by family member</h3>
+      <table><thead><tr><th>Member</th><th>Note</th><th class="n">Amount</th></tr></thead><tbody>
+        ${people.map(p => { const e = rec[p.id]; return row([esc(p.name), e ? (e.none ? 'No income this month' : esc(e.note || '')) : 'Not entered', e && !e.none ? fmtINR(L.amt(e)) : '—']); }).join('')}
+        <tr class="tot"><td colspan="2">Total income</td><td class="n">${fmtINR(t.income)}</td></tr></tbody></table>
+      <h3>Spending by category</h3>
+      ${cats.length ? `<table><thead><tr><th>Category</th><th>Type</th><th class="n">Share</th><th class="n">Amount</th></tr></thead><tbody>
+        ${cats.map(c => row([esc(c.type === 'uns' ? 'Needs a category' : c.name), KINDS[c.type] || '', t.total ? Math.round(c.v / t.total * 100) + '%' : '', fmtINR(c.v)])).join('')}
+        <tr class="tot"><td colspan="3">Total expenses</td><td class="n">${fmtINR(t.total)}</td></tr></tbody></table>` : '<p class="sem">No expenses in this period.</p>'}
+      <h3>Transactions</h3>
+      ${ex.length ? `<table class="tx2"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="hs">Paid by</th><th class="hs">Mode</th><th class="n">Amount</th></tr></thead><tbody>
+        ${ex.map(e => `<tr><td>${fmtDate(e.date)}</td><td>${esc(e.name)}${e.payee && e.payee !== e.name ? `<small>${esc(e.payee)}</small>` : ''}</td><td>${esc(e.type === 'uns' ? 'Needs a category' : L.catName(S, e.catId))}</td><td class="hs">${esc(L.personName(S, e.paidBy, e.paidName))}</td><td class="hs">${esc(e.mode || '—')}</td><td class="n">${fmtINR(e.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="sem">No transactions in this period.</p>'}
+      ${sv.length ? `<h3>Savings</h3><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="n">Amount</th></tr></thead><tbody>
+        ${sv.map(e => row([fmtDate(e.date), esc(e.name), esc(L.catName(S, e.catId)), fmtINR(e.amount)])).join('')}
+        <tr class="tot"><td colspan="3">Total saved</td><td class="n">${fmtINR(t.save)}</td></tr></tbody></table>` : ''}
+      <footer class="sf"><span>Family Ledger · Private and confidential</span><span>${ex.length} transaction${ex.length === 1 ? '' : 's'} · ${FULL[m]} ${y}</span></footer>
+    </article>`;
+  }
+
+  /* ---------- app lock (PIN, with fingerprint on phones that have it) ---------- */
+  const LOCK_AWAY_MS = 60000, FP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v4M8.5 8.5a5 5 0 0 1 8.5 3.5v2M7 12v2a5 5 0 0 0 2 4M12 7a5 5 0 0 0-5 5M17 16a8 8 0 0 1-1 3M4.5 9a8.5 8.5 0 0 1 15 0M3.5 13a8.5 8.5 0 0 0 1.5 5M15 19.5a8.5 8.5 0 0 0 1-2.5"/></svg>';
+  let awaySince = null, lockTries = 0, lockWaitUntil = 0;
+  const lockOn = () => !!(prefs.lock && prefs.lock.hash);
+  async function pinHash(pin, salt) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('family-ledger:' + salt + ':' + pin)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
+  function lockHTML(msg) {
+    const n = prefs.lock.len || 4;
+    return `<div class="lk" role="dialog" aria-modal="true" aria-label="Family Ledger is locked"><i class="lkmark">${LOGO_MARK}</i><div class="lkt">Family Ledger</div>
+      <p id="lk-msg" aria-live="assertive">${msg || 'Enter your PIN'}</p><div class="dots" id="lk-dots">${Array.from({ length: n }, () => '<i></i>').join('')}</div>
+      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button type="button" data-lk="${k}">${k}</button>`).join('')}
+        ${prefs.lock.bio && ui.bioAvail ? `<button type="button" data-lk="bio" aria-label="Use fingerprint" class="fp">${FP_ICON}</button>` : '<span></span>'}<button type="button" data-lk="0">0</button><button type="button" data-lk="del" aria-label="Delete" class="fp">⌫</button></div>
+      <button type="button" class="lkforgot" data-lk="forgot">Forgot PIN?</button></div>`;
+  }
+  function showLock() {
+    if (!lockOn() || document.getElementById('lockscr')) return;
+    ui.pin = ''; const el = document.createElement('div'); el.id = 'lockscr'; el.innerHTML = lockHTML(); document.body.appendChild(el);
+    if (prefs.lock.bio && ui.bioAvail) setTimeout(tryBio, 350);
+  }
+  function unlock() { const el = document.getElementById('lockscr'); if (el) { el.classList.add('out'); setTimeout(() => el.remove(), calm() ? 0 : 260); } lockTries = 0; ui.pin = ''; }
+  async function tryBio() {
+    if (!Native || !Native.biometricAuth) return;
+    try { const r = await Native.biometricAuth({ title: 'Unlock Family Ledger' }); if (r && r.ok) unlock(); } catch (e) {}
+  }
+  async function lockKey(k) {
+    const msg = document.getElementById('lk-msg'), dots = document.getElementById('lk-dots'); if (!msg) return;
+    if (k === 'forgot') { msg.textContent = 'For your safety the PIN cannot be reset here. Clear Family Ledger’s storage in Android Settings → Apps, then restore your backup.'; return; }
+    if (k === 'bio') return tryBio();
+    if (Date.now() < lockWaitUntil) { msg.textContent = 'Too many tries. Wait ' + Math.ceil((lockWaitUntil - Date.now()) / 1000) + ' seconds.'; return; }
+    const n = prefs.lock.len || 4;
+    if (k === 'del') ui.pin = ui.pin.slice(0, -1); else if (ui.pin.length < n) ui.pin += k;
+    dots.querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < ui.pin.length));
+    if (ui.pin.length < n) return;
+    const ok = (await pinHash(ui.pin, prefs.lock.salt)) === prefs.lock.hash;
+    if (ok) return unlock();
+    lockTries++; ui.pin = ''; dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
+    dots.querySelectorAll('i').forEach(d => d.classList.remove('on'));
+    if (lockTries >= 5) { lockWaitUntil = Date.now() + 30000; lockTries = 0; msg.textContent = 'Too many tries. Wait 30 seconds.'; }
+    else msg.textContent = 'Wrong PIN. Try again.';
+  }
+  document.addEventListener('click', e => { const b = e.target.closest('#lockscr [data-lk]'); if (b) { e.stopPropagation(); lockKey(b.dataset.lk); } }, true);
+  document.addEventListener('keydown', e => { if (!document.getElementById('lockscr')) return; if (/^[0-9]$/.test(e.key)) lockKey(e.key); else if (e.key === 'Backspace') lockKey('del'); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') awaySince = Date.now();
+    else if (lockOn() && awaySince && Date.now() - awaySince > LOCK_AWAY_MS) showLock();
+  });
+  function lockPanel() {
+    if (!lockOn()) return `<section class="panel" id="applock"><div class="phead"><div><h2>App lock</h2><p>Ask for a PIN${ui.bioAvail ? ' or fingerprint' : ''} when Family Ledger opens, so nobody else can see your family’s money.</p></div></div>
+      <div><button class="btn primary" data-act="lockSet">Set a PIN</button></div></section>`;
+    return `<section class="panel" id="applock"><div class="phead"><div><h2>App lock</h2><p>On · asks for your PIN when the app opens or after 1 minute away.</p></div></div>
+      ${ui.bioAvail ? `<label class="switch"><span>Unlock with fingerprint</span><input type="checkbox" id="lock-bio" ${prefs.lock.bio ? 'checked' : ''}></label>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="lockNow">Lock now</button><button class="btn" data-act="lockSet">Change PIN</button><button class="btn ghost" data-act="lockOff">Turn off</button></div></section>`;
+  }
+
   function vSettings() {
     const y = ui.year, m = ui.month, k = ui.catTab;
     const list = S.cats.filter(c => c.kind === k);
@@ -780,6 +894,7 @@
       <div>${list.filter(c => !c.archived).map(catRow).join('')}</div>
       ${list.some(c => c.archived) ? `<span class="label">Archived · hidden from new entries, kept in history</span><div>${list.filter(c => c.archived).map(catRow).join('')}</div>` : ''}
     </section>
+    ${lockPanel()}
     ${cloudPanel()}
     <section class="panel">
       <div class="phead"><div><h2>Backup and move data</h2><p>Data is saved on this phone only. It does not sync to other phones.</p></div></div>
@@ -1404,6 +1519,34 @@
 
     /* data */
     exportJSON() { if (download(`family-ledger-backup-${today()}.json`, JSON.stringify(S, null, 1), 'application/json')) { addLog('Backup downloaded'); persist(); } },
+    stmtPdf() { const t = 'Family Ledger statement ' + FULL[ui.month] + ' ' + ui.year; if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
+    lockSet() {
+      const change = lockOn();
+      sheet(`<h3>${change ? 'Change your PIN' : 'Set a PIN'}</h3><p>4 to 6 digits. You will need it every time you open Family Ledger.</p>
+        ${change ? '<label class="field"><span>Current PIN</span><input id="pin-old" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>' : ''}
+        <label class="field"><span>New PIN</span><input id="pin-a" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+        <label class="field"><span>Type it again</span><input id="pin-b" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+        <div class="err" id="pin-err" role="alert"></div>
+        <div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="lockSave">Save PIN</button></div>`);
+    },
+    async lockSave() {
+      const a = q('#pin-a').value.trim(), b = q('#pin-b').value.trim(), err = q('#pin-err'), old = q('#pin-old');
+      if (old && (await pinHash(old.value.trim(), prefs.lock.salt)) !== prefs.lock.hash) { err.textContent = 'The current PIN is not right.'; return; }
+      if (!/^[0-9]{4,6}$/.test(a)) { err.textContent = 'Use 4 to 6 digits.'; return; }
+      if (a !== b) { err.textContent = 'The two PINs are different. Type the same PIN twice.'; return; }
+      const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      prefs.lock = { hash: await pinHash(a, salt), salt, len: a.length, bio: !!(prefs.lock && prefs.lock.bio) }; savePrefs();
+      addLog('App lock PIN set'); persist(); closeSheet(); render(); toast('PIN saved. Family Ledger will ask for it when it opens.');
+    },
+    lockNow() { showLock(); },
+    lockOff() {
+      sheet(`<h3>Turn off app lock?</h3><p>Anyone holding this phone could open Family Ledger.</p><label class="field"><span>Current PIN</span><input id="pin-old" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+        <div class="err" id="pin-err" role="alert"></div><div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn danger solid" data-act="lockOffOk">Turn off</button></div>`);
+    },
+    async lockOffOk() {
+      if ((await pinHash(q('#pin-old').value.trim(), prefs.lock.salt)) !== prefs.lock.hash) { q('#pin-err').textContent = 'The PIN is not right.'; return; }
+      delete prefs.lock; savePrefs(); addLog('App lock turned off'); persist(); closeSheet(); render(); toast('App lock is off.');
+    },
     async cloudConnect() {
       const $id = i => document.getElementById(i);
       let url = ($id('cloud-url').value || '').trim(), key = ($id('cloud-key').value || '').trim(), err = $id('cloud-err');
@@ -1566,6 +1709,7 @@
   document.addEventListener('change', ev => {
     const el = ev.target;
     if (el.matches('input[type=checkbox][data-act]')) { const f = A[el.dataset.act]; if (f) f(el, ev); return; }
+    if (el.id === 'lock-bio') { prefs.lock.bio = el.checked; savePrefs(); toast(el.checked ? 'Fingerprint unlock is on.' : 'Fingerprint unlock is off. The PIN still works.'); return; }
     if (el.id === 'f-same' && ui.form) {
       // "Same person as before?": fill in that person's category; on Save this payment is linked to them
       ui.form.samePerson = el.value || null;
@@ -1653,5 +1797,12 @@
     try { Native.addListener('openFromAlert', d => { if (d && d.open === 'review') openReviewFromAlert(); }); } catch (e) {}
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { refreshNative(); pullUpi(); } });
   }
+  /* Opening screen: the gold mark for a moment, then the ledger (or the PIN screen). */
+  (function opening() {
+    const el = document.createElement('div'); el.id = 'splash'; el.innerHTML = `<i>${LOGO_MARK}</i><span>Family Ledger</span>`; document.body.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, calm() ? 250 : 1000);
+  })();
+  if (Native && Native.biometricStatus) Native.biometricStatus().then(r => { ui.bioAvail = !!(r && r.available); if (ui.view === 'settings') render(); }).catch(() => {});
+  showLock();
   window.__ledgerApp = { get S() { return S; }, A, ui, render, drawPayCard, catIcon, catIconKey };
 })();

@@ -14,7 +14,11 @@ import android.provider.MediaStore;
 import android.provider.Settings;
 import android.webkit.WebView;
 
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -261,6 +265,47 @@ public class LedgerNativePlugin extends Plugin {
                 call.resolve();
             } catch (Exception e) {
                 call.reject("Printing is not available: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Whether this phone can unlock the app with a fingerprint (or face, where Android allows it). */
+    @PluginMethod
+    public void biometricStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        boolean ok = false;
+        try {
+            ok = BiometricManager.from(getContext()).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS;
+        } catch (Exception ignored) { }
+        r.put("available", ok);
+        call.resolve(r);
+    }
+
+    /** Shows Android's fingerprint prompt. Resolves {ok:true} on success; {ok:false} if cancelled or not possible (the PIN still works). */
+    @PluginMethod
+    public void biometricAuth(PluginCall call) {
+        final String title = call.getString("title", "Unlock Family Ledger");
+        getActivity().runOnUiThread(() -> {
+            try {
+                FragmentActivity act = (FragmentActivity) getActivity();
+                BiometricPrompt prompt = new BiometricPrompt(act, ContextCompat.getMainExecutor(act), new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                        JSObject o = new JSObject(); o.put("ok", true); call.resolve(o);
+                    }
+                    @Override
+                    public void onAuthenticationError(int code, CharSequence msg) {
+                        JSObject o = new JSObject(); o.put("ok", false); o.put("error", String.valueOf(msg)); call.resolve(o);
+                    }
+                });
+                BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(title)
+                    .setNegativeButtonText("Use PIN")
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+                    .build();
+                prompt.authenticate(info);
+            } catch (Exception e) {
+                JSObject o = new JSObject(); o.put("ok", false); o.put("error", e.getMessage()); call.resolve(o);
             }
         });
     }

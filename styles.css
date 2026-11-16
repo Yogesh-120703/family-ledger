@@ -370,11 +370,103 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 .fb{display:block;height:4px;border-radius:999px;background:var(--raised);overflow:hidden;margin-top:4px}
 .fb i{display:block;height:100%;border-radius:999px}
 
+/* statement-style amounts: small ₹ and paise */
+.rich{white-space:nowrap}
+.rich .cur{font-size:.58em;font-weight:500;margin-right:.12em;vertical-align:.42em;color:var(--accent)}
+.rich .ps{font-size:.5em;font-weight:500;color:var(--muted);margin-left:.06em}
+.rich .sg{margin-right:.08em}
+.card .rich .cur{color:inherit;opacity:.85}
+.balance .v{letter-spacing:-.03em}
+
+/* gold coin stacks */
+.vault{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 8px}
+@media (min-width:640px){.vault{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.vstack{display:grid;justify-items:center;text-align:center;gap:4px;min-width:0}
+.vstack svg{width:72px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+.vstack .cicon{width:28px;height:28px;border-radius:9px;margin-top:2px}
+.vstack .cicon svg{width:15px;height:15px;filter:none}
+.vstack strong{font-weight:500;font-size:.8rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vstack span{font-size:.78rem;color:var(--accent-3);font-variant-numeric:tabular-nums}
+.vnote{margin:0;font-size:.8rem;text-align:center} .vnote b{color:var(--accent)}
+
+/* motion: quiet, short, and off when the phone asks for less */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fill{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.wrap.enter>*{animation:rise .32s cubic-bezier(.2,.8,.2,1) both}
+.wrap.enter>*:nth-child(2){animation-delay:.03s} .wrap.enter>*:nth-child(3){animation-delay:.06s} .wrap.enter>*:nth-child(4){animation-delay:.09s} .wrap.enter>*:nth-child(5){animation-delay:.12s}
+.jar svg rect[clip-path]{transform-box:fill-box;transform-origin:bottom;animation:fill 1.1s cubic-bezier(.2,.8,.2,1) both}
+@media (prefers-reduced-motion:reduce){.wrap.enter>*,.jar svg rect[clip-path]{animation:none}}
+
+/* opening screen */
+#splash{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-content:center;justify-items:center;gap:18px;transition:opacity .45s ease}
+#splash i{width:92px;height:92px;line-height:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+#splash i svg{width:92px;height:92px}
+#splash span{color:var(--accent);letter-spacing:.32em;text-transform:uppercase;font-size:.74rem;font-weight:600;animation:rise .6s .15s cubic-bezier(.2,.8,.2,1) both}
+#splash.out{opacity:0}
+
+/* app lock */
+#lockscr{position:fixed;inset:0;z-index:90;background:var(--bg);display:grid;place-items:center;padding:calc(var(--st) + 24px) 16px calc(var(--sb) + 24px);transition:opacity .25s}
+#lockscr.out{opacity:0}
+.lk{display:grid;justify-items:center;gap:14px;width:min(320px,100%)}
+.lkmark{width:64px;height:64px;line-height:0} .lkmark svg{width:64px;height:64px}
+.lkt{color:var(--accent);letter-spacing:.28em;text-transform:uppercase;font-size:.72rem;font-weight:600}
+#lk-msg{margin:6px 0 0;color:var(--muted);font-size:.92rem;text-align:center;min-height:2.6em}
+.dots{display:flex;gap:14px;margin-bottom:8px}
+.dots i{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--accent-line);transition:background .12s,border-color .12s}
+.dots i.on{background:var(--accent);border-color:var(--accent)}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.dots.shake{animation:shake .35s}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:14px 22px}
+.pad button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:1.5rem;font-weight:500}
+.pad button:active{background:var(--raised);border-color:var(--accent-line)}
+.pad button.fp{border-color:transparent;background:transparent;color:var(--accent);font-size:1.3rem;display:grid;place-items:center}
+.pad button.fp svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+.lkforgot{border:0;background:none;color:var(--faint);font-size:.82rem;min-height:40px}
+
+/* private statement: paper look on screen, clean pages when saved as PDF */
+.stbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.stbar p{margin:0;font-size:.88rem}
+.stmt{min-width:0;--p-ink:#1B1D21;--p-muted:#6B6F76;--p-line:#E4DED2;--p-gold:#A8843F;background:#FBFAF6;color:var(--p-ink);border-radius:12px;padding:28px 24px;display:grid;gap:14px;font-size:.84rem;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow-x:auto}
+.stmt .sh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:2px solid var(--p-gold)}
+.stmt .sbr{display:flex;gap:12px;align-items:center}
+.stmt .sbr i{width:44px;height:44px;line-height:0} .stmt .sbr i svg{width:44px;height:44px}
+.stmt .sbr b{display:block;font-size:1.15rem;letter-spacing:-.01em}
+.stmt .sbr span{color:var(--p-muted);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase}
+.stmt .sp{display:grid;text-align:right;gap:2px}
+.stmt .sp span{color:var(--p-muted);font-size:.74rem}
+.stmt .ssum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--p-line);border:1px solid var(--p-line);border-radius:8px;overflow:hidden}
+@media (max-width:520px){.stmt .ssum{grid-template-columns:1fr 1fr}}
+.stmt .ssum div{background:#FBFAF6;padding:10px 12px;display:grid;gap:2px}
+.stmt .ssum span{color:var(--p-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em}
+.stmt .ssum b{font-size:1.05rem;font-variant-numeric:tabular-nums}
+.stmt .ssum .gold b{color:var(--p-gold)}
+.stmt .ssplit{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--p-muted)}
+.stmt .ssplit b{color:var(--p-ink);font-weight:600}
+.stmt h3{font-size:.74rem;text-transform:uppercase;letter-spacing:.14em;color:var(--p-gold);margin:8px 0 -6px;font-weight:600}
+.stmt table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;color:var(--p-ink);font-size:inherit}
+@media screen and (max-width:560px){.stmt .hs{display:none}.stmt{padding:20px 14px}.stmt .sp{text-align:left}}
+.stmt th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--p-muted);font-weight:600;padding:6px 6px;border-bottom:1px solid var(--p-ink)}
+.stmt td{padding:6px 6px;border-bottom:1px solid var(--p-line);vertical-align:top}
+.stmt td small{display:block;color:var(--p-muted);font-size:.72rem}
+.stmt .n{text-align:right;white-space:nowrap}
+.stmt tr.tot td{font-weight:600;border-bottom:0;border-top:1px solid var(--p-ink)}
+.stmt .sem{color:var(--p-muted);margin:0}
+.stmt .sf{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;border-top:1px solid var(--p-line);padding-top:10px;color:var(--p-muted);font-size:.72rem}
+@media print{
+  body{background:#fff!important}
+  .stbar,.top,#splash,#lockscr{display:none!important}
+  .stmt{box-shadow:none;border-radius:0;padding:0;background:#fff}
+  .stmt .ssum div{background:#fff}
+  .stmt tr{break-inside:avoid}
+}
+
 /* laptop and tablet: navigation becomes a side menu */
 @media (min-width:1000px){
   .tabbar{top:0;right:auto;width:var(--side);border-top:0;border-right:1px solid var(--line);padding:calc(var(--st) + 24px) 14px 24px;display:flex;flex-direction:column;gap:20px}
   .tabbar .brandside{display:flex;align-items:center;gap:10px;padding:0 10px;font-weight:600;letter-spacing:-.01em}
-  .tabbar .brandside i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-style:normal;font-weight:700}
+  .tabbar .brandside i{width:32px;height:32px;display:block;line-height:0}
+  .tabbar .brandside i svg{width:32px;height:32px}
   .tabbar ul{display:flex;flex-direction:column;height:auto;max-width:none;width:100%;margin:0;padding:0;gap:4px}
   .tabbar button{display:flex;justify-content:flex-start;gap:12px;height:44px;padding:0 12px;border-radius:10px;font-size:.88rem;font-weight:500;color:var(--muted)}
   .tabbar button:hover{background:var(--surface);color:var(--ink)}
