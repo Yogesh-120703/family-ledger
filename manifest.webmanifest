@@ -1,6 +1,6 @@
 {
-  "name": "Family Income Ledger",
-  "short_name": "Family Ledger",
+  "name": "Vault Tracker",
+  "short_name": "Vault Tracker",
   "description": "Track family income, expenses and savings. UPI payments are added automatically in the Android app.",
   "id": "/",
   "start_url": "/",

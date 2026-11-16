@@ -1,4 +1,4 @@
-/* Family Income Ledger — core data and calculations.
+/* Vault Tracker — core data and calculations.
    No DOM code here, so it can be tested in Node and reused by any UI. */
 (function (L) {
   'use strict';
@@ -55,7 +55,7 @@
       alertSeen: {},
       limitLog: [],
       notify: false,
-      log: [{ t: Date.now(), msg: 'Family Income Ledger app set up with Person 1–4' }]
+      log: [{ t: Date.now(), msg: 'Vault Tracker app set up with Person 1–4' }]
     };
   }
 
@@ -211,7 +211,7 @@
   function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function toCSV(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\r\n'); }
   function yearCSV(S, y) {
-    const rows = [['Family Income Ledger — ' + y], [], ['Month','Income','Necessary','Lifestyle','Total expenses','Savings','Available balance','Running balance']];
+    const rows = [['Vault Tracker — ' + y], [], ['Month','Income','Necessary','Lifestyle','Total expenses','Savings','Available balance','Running balance']];
     yearSeries(S, y).forEach((x, i) => { const rb = runningBalance(S, y, i); rows.push(x.empty ? [FULL[i], '', '', '', '', '', '', rb.started ? rb.total : ''] : [FULL[i], x.income, x.need, x.life, x.total, x.save, x.bal, rb.total]); });
     const t = yearTotals(S, y);
     rows.push(['Total', t.income, t.need, t.life, t.total, t.save, t.bal], [], ['Transactions'],

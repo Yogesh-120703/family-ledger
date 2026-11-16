@@ -1,6 +1,6 @@
 {
   "appId": "in.dnabusiness.familyledger",
-  "appName": "Family Ledger",
+  "appName": "Vault Tracker",
   "webDir": "www",
   "android": { "allowMixedContent": false, "captureInput": true }
 }

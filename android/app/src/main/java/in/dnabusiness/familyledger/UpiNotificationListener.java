@@ -7,7 +7,7 @@ import android.service.notification.StatusBarNotification;
 
 /**
  * Reads notifications from the payment apps the user picked in Settings.
- * Android only runs this after the user turns on notification access for Family Ledger.
+ * Android only runs this after the user turns on notification access for Vault Tracker.
  * Notifications from any other app are ignored immediately and never stored.
  */
 public class UpiNotificationListener extends NotificationListenerService {

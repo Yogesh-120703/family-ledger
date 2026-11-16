@@ -1,5 +1,5 @@
 // MCP server for Claude (Streamable HTTP, stateless, JSON responses). Address: https://<site>/mcp/<code>
-// The code comes from LEDGER_SECRET; the Family Ledger app shows the full address after it connects.
+// The code comes from LEDGER_SECRET; the Vault Tracker app shows the full address after it connects.
 const store = require('./_lib/store');
 const auth = require('./_lib/auth');
 const { TOOLS, call } = require('./_lib/tools');
@@ -21,14 +21,14 @@ async function handle(msg) {
   if (method === 'initialize') {
     const want = params && params.protocolVersion;
     return ok(id, { protocolVersion: VERSIONS.includes(want) ? want : VERSIONS[0], capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'family-ledger', title: 'Family Ledger', version: '1.0.0' },
-      instructions: 'Read-only access to one family\'s Family Ledger: income, expenses (Necessary / Lifestyle), savings and monthly reports. Amounts are Indian rupees (₹). Months are YYYY-MM. Data is as last sent from the phone app (see dataSentFromPhone).' });
+      serverInfo: { name: 'vault-tracker', title: 'Vault Tracker', version: '1.0.0' },
+      instructions: 'Read-only access to one family\'s Vault Tracker: income, expenses (Necessary / Lifestyle), savings and monthly reports. Amounts are Indian rupees (₹). Months are YYYY-MM. Data is as last sent from the phone app (see dataSentFromPhone).' });
   }
   if (method === 'ping') return ok(id, {});
   if (method === 'tools/list') return ok(id, { tools: TOOLS.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, annotations })) });
   if (method === 'tools/call') {
     const snap = await store.load();
-    if (!snap) return ok(id, { isError: true, content: [{ type: 'text', text: 'No data yet. Open Family Ledger on the phone, go to Settings → Online copy for Claude, and tap Send now.' }] });
+    if (!snap) return ok(id, { isError: true, content: [{ type: 'text', text: 'No data yet. Open Vault Tracker on the phone, go to Settings → Online copy for Claude, and tap Send now.' }] });
     try {
       const out = call(snap, params && params.name, params && params.arguments);
       return ok(id, { content: [{ type: 'text', text: JSON.stringify(out, null, 1) }], structuredContent: out });

@@ -11,9 +11,11 @@
   color-scheme:dark;
 }
 /* category icon next to each payment: thin line drawing on a quiet tile */
-.cicon{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line);color:var(--need)}
-.cicon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.cicon.life{color:var(--life)} .cicon.save{color:var(--save)} .cicon.uns{color:var(--uns)}
+.cicon{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#E2C68E;
+  background:radial-gradient(circle at 30% 25%,#363A41,#1B1D21 72%);border:1.5px solid var(--k,rgba(212,175,110,.75));box-shadow:inset 0 0 0 2.5px #1B1D21,inset 0 0 0 3.5px rgba(212,175,110,.24),0 2px 6px rgba(0,0,0,.3)}
+.cicon svg{width:21px;height:21px;fill:rgba(212,175,110,.28);stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.cicon.need{--k:rgba(134,168,207,.85)} .cicon.life{--k:rgba(207,154,124,.9)} .cicon.save{--k:rgba(212,175,110,.9)} .cicon.uns{--k:rgba(167,159,214,.85);color:#C9C2EE}
+.cicon.uns svg{fill:rgba(167,159,214,.22)}
 /* month picture */
 .mpicwrap{display:grid;gap:8px;justify-items:center}
 .mpic{width:100%;max-width:420px;height:auto;border-radius:16px;border:1px solid var(--line);aspect-ratio:4/5}
@@ -339,8 +341,8 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 .tmap{position:relative;width:100%;aspect-ratio:100/62;max-width:100%;border-radius:12px;overflow:hidden}
 .tm{position:absolute;box-sizing:border-box;border:2px solid var(--surface);border-radius:10px;padding:8px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;overflow:hidden;
   background:color-mix(in srgb,var(--c) 18%,var(--raised));color:var(--ink)}
-.tm i{position:absolute;top:8px;left:8px;color:var(--c);line-height:0}
-.tm i svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tm i{position:absolute;top:8px;left:8px;line-height:0}
+.tm i svg{width:20px;height:20px;fill:rgba(212,175,110,.22);stroke:#E2C68E;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .tm .tn{font-size:.76rem;font-weight:500;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tm .tv{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal{display:grid;gap:6px}
@@ -358,7 +360,7 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 .picto{display:grid;gap:12px}
 .pr{display:grid;gap:6px}
 .pl{display:flex;align-items:center;gap:10px;min-width:0}
-.pl .cicon{width:32px;height:32px;border-radius:10px}
+.pl .cicon{width:34px;height:34px}
 .pl .cicon svg{width:16px;height:16px}
 .pl span{display:flex;gap:8px;align-items:baseline;min-width:0}
 .pl strong{font-weight:500;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -383,7 +385,7 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 @media (min-width:640px){.vault{grid-template-columns:repeat(6,minmax(0,1fr))}}
 .vstack{display:grid;justify-items:center;text-align:center;gap:4px;min-width:0}
 .vstack svg{width:72px;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
-.vstack .cicon{width:28px;height:28px;border-radius:9px;margin-top:2px}
+.vstack .cicon{width:32px;height:32px;margin-top:2px}
 .vstack .cicon svg{width:15px;height:15px;filter:none}
 .vstack strong{font-weight:500;font-size:.8rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vstack span{font-size:.78rem;color:var(--accent-3);font-variant-numeric:tabular-nums}
@@ -401,7 +403,8 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
 #splash{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-content:center;justify-items:center;gap:18px;transition:opacity .45s ease}
 #splash i{width:92px;height:92px;line-height:0;animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
 #splash i svg{width:92px;height:92px}
-#splash span{color:var(--accent);letter-spacing:.32em;text-transform:uppercase;font-size:.74rem;font-weight:600;animation:rise .6s .15s cubic-bezier(.2,.8,.2,1) both}
+#splash span{color:var(--accent);letter-spacing:.32em;text-transform:uppercase;font-size:.78rem;font-weight:600;animation:rise .6s .15s cubic-bezier(.2,.8,.2,1) both}
+#splash small{color:var(--faint);letter-spacing:.2em;text-transform:uppercase;font-size:.62rem;margin-top:-10px;animation:rise .6s .25s cubic-bezier(.2,.8,.2,1) both}
 #splash.out{opacity:0}
 
 /* app lock */
@@ -467,6 +470,8 @@ textarea.paste{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-si
   .tabbar .brandside{display:flex;align-items:center;gap:10px;padding:0 10px;font-weight:600;letter-spacing:-.01em}
   .tabbar .brandside i{width:32px;height:32px;display:block;line-height:0}
   .tabbar .brandside i svg{width:32px;height:32px}
+  .tabbar .brandside span{display:grid;line-height:1.2}
+  .tabbar .brandside small{color:var(--accent);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;font-weight:600}
   .tabbar ul{display:flex;flex-direction:column;height:auto;max-width:none;width:100%;margin:0;padding:0;gap:4px}
   .tabbar button{display:flex;justify-content:flex-start;gap:12px;height:44px;padding:0 12px;border-radius:10px;font-size:.88rem;font-weight:500;color:var(--muted)}
   .tabbar button:hover{background:var(--surface);color:var(--ink)}

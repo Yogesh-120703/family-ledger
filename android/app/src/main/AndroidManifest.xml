@@ -49,6 +49,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Android 13+: lets Family Ledger show "₹450 paid… tap to add" alerts. The user is asked first. -->
+    <!-- Android 13+: lets Vault Tracker show "₹450 paid… tap to add" alerts. The user is asked first. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

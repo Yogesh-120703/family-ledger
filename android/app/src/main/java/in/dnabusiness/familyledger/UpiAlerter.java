@@ -25,7 +25,7 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Shows Family Ledger's own alert a few seconds after a UPI payment is detected:
+ * Shows Vault Tracker's own alert a few seconds after a UPI payment is detected:
  * "₹450 paid to Annapoorna Hotel · Tap to add to expenses".
  * One payment often brings several notifications (UPI app + bank SMS) within a minute;
  * they update the same alert instead of creating new ones.
@@ -90,7 +90,7 @@ final class UpiAlerter {
         // Automatic entry: a clear payment is added by the app as "Not sorted" (the app does this the moment
         // it reads the queue). Anything unclear still waits for review.
         boolean added = UpiStore.isAuto(ctx) && amount != null; // the app adds every payment with a clear amount
-        String body = added ? "Added to Family Ledger automatically. Tap to see it or set its category."
+        String body = added ? "Added to Vault Tracker automatically. Tap to see it or set its category."
             : "Amount not clear in the message, so it was not added.";
         if (g.count > 1) body += " (" + g.count + " notifications for this payment)";
 
@@ -154,7 +154,7 @@ final class UpiAlerter {
         String who = payee == null || payee.isEmpty() ? "UPI payment" : payee;
         if (who.length() > 22) who = who.substring(0, 21) + "…";
         p.setColor(0xFFF5F5F2); p.setTypeface(bold); p.setTextSize(56); c.drawText(who, 280, 180, p);
-        p.setColor(GOLD); p.setTypeface(reg); p.setTextSize(38); c.drawText("Family Ledger", 280, 238, p);
+        p.setColor(GOLD); p.setTypeface(reg); p.setTextSize(38); c.drawText("Vault Tracker", 280, 238, p);
         p.setColor(0xFFF5F5F2); p.setTypeface(bold); p.setTextSize(104); c.drawText(amount, 70, 400, p);
         p.setColor(0xFF777D86); p.setTypeface(reg); p.setTextSize(32);
         c.drawText(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(at)) + " · " + source, 70, 460, p);

@@ -1,4 +1,4 @@
-/* Family Income Ledger — app screens. Depends on core.js (window.Ledger). */
+/* Vault Tracker — app screens. Depends on core.js (window.Ledger). */
 (function () {
   'use strict';
   const L = window.Ledger;
@@ -92,7 +92,7 @@
   const app = document.getElementById('app'), navEl = document.getElementById('nav'), layer = document.getElementById('layer');
   const svg = (k, cls) => `<svg viewBox="0 0 24 24" aria-hidden="true"${cls ? ' class="' + cls + '"' : ''}>${ICON[k]}</svg>`;
   function renderNav() {
-    if (!navEl.parentNode.querySelector('.brandside')) navEl.insertAdjacentHTML('beforebegin', '<div class="brandside"><i>' + LOGO_MARK + '</i>Family Ledger</div>');
+    if (!navEl.parentNode.querySelector('.brandside')) navEl.insertAdjacentHTML('beforebegin', '<div class="brandside"><i>' + LOGO_MARK + '</i><span>Vault Tracker<small>Family Wealth</small></span></div>');
     navEl.innerHTML = VIEWS.map(([k, l]) => `<li><button data-act="go" data-v="${k}" ${ui.view === k ? 'aria-current="page"' : ''}>${svg(k)}${l}</button></li>`).join('');
   }
   function header(title, mode) {
@@ -102,7 +102,7 @@
         ? `<div class="stepper" role="group" aria-label="Month"><button data-act="stepM" data-d="-1" aria-label="Previous month">‹</button><strong>${MONTHS[ui.month]} ${ui.year}</strong><button data-act="stepM" data-d="1" aria-label="Next month">›</button></div>` : '';
     const left = ui.view === 'settings' || ui.view === 'review' || ui.view === 'statement'
       ? `<div style="display:flex;align-items:center;gap:10px"><button class="iconbtn" data-act="go" data-v="${ui.prevView || 'home'}" aria-label="Back">${svg('back')}</button><h1>${title}</h1></div>`
-      : `<div><div class="brand">Family Ledger</div><h1>${title}</h1></div>`;
+      : `<div><div class="brand">Vault Tracker</div><h1>${title}</h1></div>`;
     return `<div class="top">${left}<div class="tools">${step}
     ${ui.view !== 'settings' && ui.view !== 'review' ? `<button class="iconbtn" data-act="go" data-v="settings" aria-label="Settings">${svg('gear')}</button>` : ''}</div></div>`;
   }
@@ -135,9 +135,16 @@
   const inr = v => '₹' + Math.round(Math.abs(v)).toLocaleString('en-IN');
   const GG = { bg: '#17191D', card: '#262A30', raised: '#2D3239', line: '#393D44', ink: '#F5F5F2', muted: '#A5A9B0', faint: '#777D86', gold: '#D4AF6E', gold3: '#E5D0A5', good: '#39B980', bad: '#E07878', need: '#86A8CF', life: '#CF9A7C', uns: '#A79FD6' };
   const FONT = (w, s) => `${w} ${s}px Inter, system-ui, sans-serif`;
-  function drawIcon(g, key, x, y, size, color) {
-    g.save(); g.translate(x, y); g.scale(size / 24, size / 24); g.strokeStyle = color; g.lineWidth = 1.7; g.lineCap = 'round'; g.lineJoin = 'round';
-    try { g.stroke(new Path2D(CAT_SVG[key] || CAT_SVG.pin)); } catch (e) {} g.restore();
+  // Gold medallion picture for canvas images (month picture, payment card).
+  function drawIcon(g, key, x, y, size, ring) {
+    const cx = x + size / 2, cy = y + size / 2, R = size * .85;
+    const grd = g.createRadialGradient(cx - R * .4, cy - R * .5, 1, cx, cy, R * 1.1); grd.addColorStop(0, '#363A41'); grd.addColorStop(1, '#1B1D21');
+    g.fillStyle = grd; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = ring || 'rgba(212,175,110,.8)'; g.lineWidth = size * .045; g.beginPath(); g.arc(cx, cy, R - g.lineWidth / 2, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(212,175,110,.25)'; g.lineWidth = size * .02; g.beginPath(); g.arc(cx, cy, R * .86, 0, Math.PI * 2); g.stroke();
+    g.save(); g.translate(x + size * .2, y + size * .2); g.scale(size * .6 / 24, size * .6 / 24);
+    try { const p = new Path2D(CAT_SVG[key] || CAT_SVG.pin); g.fillStyle = 'rgba(212,175,110,.28)'; g.fill(p); g.strokeStyle = '#E2C68E'; g.lineWidth = 1.7; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(p); } catch (e) {}
+    g.restore();
   }
   function drawMonthCard(cv, r) {
     const g = cv.getContext('2d'), W = cv.width, H = cv.height;
@@ -145,7 +152,7 @@
     g.fillStyle = GG.bg; rr(g, 0, 0, W, H, 48); g.fill();
     g.strokeStyle = 'rgba(212,175,110,.45)'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 47); g.stroke();
     g.fillStyle = GG.gold; g.fillRect(70, 70, 64, 4);
-    g.fillStyle = GG.gold; g.font = FONT(600, 30); g.fillText('FAMILY LEDGER', 70, 125);
+    g.fillStyle = GG.gold; g.font = FONT(600, 30); g.fillText('VAULT TRACKER', 70, 125);
     g.fillStyle = GG.ink; g.font = FONT(600, 80); g.fillText(FULL[r.m] + ' ' + r.y, 70, 215);
     g.fillStyle = GG.muted; g.font = FONT(400, 38);
     g.fillText(r.hasIncome ? `Kept ${r.leftPct == null ? '—' : r.leftPct + '%'} of income` : 'Add income to see what you kept', 70, 275);
@@ -162,8 +169,7 @@
     if (!top.length) { g.fillStyle = GG.muted; g.font = FONT(400, 36); g.fillText('No expenses this month yet.', 80, 660); }
     top.forEach((c, i) => {
       const y = 650 + i * 118, col = c.type === 'life' ? GG.life : c.type === 'uns' ? GG.uns : GG.need;
-      g.fillStyle = GG.raised; rr(g, 80, y - 12, 84, 84, 22); g.fill();
-      drawIcon(g, catIconKey(c.catId, c.type), 98, y + 6, 48, col);
+      drawIcon(g, catIconKey(c.catId, c.type), 98, y + 12, 48, col);
       g.fillStyle = GG.ink; g.font = FONT(500, 36); g.fillText(c.name.length > 26 ? c.name.slice(0, 25) + '…' : c.name, 190, y + 20);
       g.fillStyle = GG.sunk || '#202329'; rr(g, 190, y + 42, 560, 14, 7); g.fill();
       g.fillStyle = col; rr(g, 190, y + 42, Math.max(16, 560 * c.v / max), 14, 7); g.fill();
@@ -178,8 +184,7 @@
     g.fillStyle = GG.card; rr(g, 0, 0, W, H, 40); g.fill();
     g.strokeStyle = 'rgba(212,175,110,.45)'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 39); g.stroke();
     const col = p.type === 'life' ? GG.life : p.type === 'uns' ? GG.uns : p.type === 'save' ? GG.gold : GG.need;
-    g.fillStyle = GG.raised; rr(g, 70, 70, 170, 170, 40); g.fill();
-    drawIcon(g, p.iconKey || 'pin', 105, 105, 100, col);
+    drawIcon(g, p.iconKey || 'pin', 95, 95, 120, col);
     g.fillStyle = GG.muted; g.font = FONT(400, 36); g.fillText('Paid to', 280, 112);
     g.fillStyle = GG.ink; g.font = FONT(600, 56); g.fillText(p.payee.length > 22 ? p.payee.slice(0, 21) + '…' : p.payee, 280, 180);
     g.fillStyle = p.type === 'uns' ? GG.uns : GG.gold; g.font = FONT(500, 38); g.fillText(p.category, 280, 238);
@@ -398,7 +403,7 @@
     const limPanel = st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 3)}</section>` : '';
 
     return header('Home', 'month') + `
-    ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Family Ledger on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
+    ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Vault Tracker on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
     ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend. You can also bring data from a backup.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
     ${needsCatPanel()}
     <section class="balance" aria-label="Total family balance">
@@ -449,7 +454,7 @@
     return upiSetupCard()
       + (needs.length ? `<section class="panel needscat"><div class="phead"><div><h2>Needs a category</h2><p>${needs.length} payment${needs.length === 1 ? '' : 's'} added automatically · tap to choose a category</p></div></div>${needs.sort(byNewest).map(e => txRow(e, 'exp')).join('')}</section>` : '')
       + `<section class="panel"><div class="phead"><div><h2>UPI payments · ${FULL[ui.month]}</h2><p>${sorted.length} with a category${sorted.some(e => e.catAuto) ? ' · ⟳ = category remembered' : ''}</p></div></div>
-      ${sorted.length ? grouped(sorted, 'exp') : `<div class="empty"><b>No UPI payments yet</b>${IS_NATIVE ? 'Payments you make with GPay, PhonePe, Paytm, BHIM or CRED appear here by themselves.' : 'Payments appear here automatically in the Family Ledger Android app.'}</div>`}</section>` + rememberedList();
+      ${sorted.length ? grouped(sorted, 'exp') : `<div class="empty"><b>No UPI payments yet</b>${IS_NATIVE ? 'Payments you make with GPay, PhonePe, Paytm, BHIM or CRED appear here by themselves.' : 'Payments appear here automatically in the Vault Tracker Android app.'}</div>`}</section>` + rememberedList();
   }
   /* Shows what the phone has actually delivered, so a missed payment can be traced. */
   function detectionCheck(n) {
@@ -457,11 +462,11 @@
     const known = pkg => { const k = L.sourceOfPkg(pkg); return k ? L.UPI_SOURCES[k].name : null; };
     const watching = pkg => !!(L.sourceOfPkg(pkg) || (S.upi.extraPkgs || []).includes(pkg));
     return `<details class="detcheck" ${rows.length ? '' : 'open'}><summary><strong>Detection check</strong> <span class="muted">· ${n.connectedAt ? 'reader running' : 'reader not started yet'}</span></summary>
-      ${n.connectedAt ? '' : '<p class="flag">Android has not started the payment reader yet. Turn notification access for Family Ledger off and on again, or restart the phone.</p>'}
+      ${n.connectedAt ? '' : '<p class="flag">Android has not started the payment reader yet. Turn notification access for Vault Tracker off and on again, or restart the phone.</p>'}
       ${rows.length ? `<p class="muted" style="margin:6px 0;font-size:.84rem">Apps that showed a ₹ notification since you turned this on:</p>
         ${rows.map(([pkg, o]) => `<div class="rowline"><span><strong>${esc(known(pkg) || o.label || pkg)}</strong> <span class="muted">· ${o.n} · last ${fmtStamp(o.last)}</span><br><span class="muted" style="font-size:.76rem">${esc(pkg)}</span></span>
           ${watching(pkg) ? '<span class="pos" style="font-size:.84rem">Watching</span>' : `<button class="btn small" data-act="watchPkg" data-p="${esc(pkg)}">Watch this app</button>`}</div>`).join('')}`
-        : '<p class="muted" style="margin:6px 0;font-size:.86rem">No ₹ notification has reached Family Ledger yet. Make a payment, then come back here. If nothing appears, your UPI app did not show a notification and your bank SMS app may be turned off for notifications.</p>'}
+        : '<p class="muted" style="margin:6px 0;font-size:.86rem">No ₹ notification has reached Vault Tracker yet. Make a payment, then come back here. If nothing appears, your UPI app did not show a notification and your bank SMS app may be turned off for notifications.</p>'}
     </details>`;
   }
   function askRememberSheet(a) {
@@ -486,7 +491,7 @@
     </details></section>`;
   }
   function upiSetupCard() {
-    if (!Native) return `<section class="panel"><div class="phead"><div><h2>Automatic UPI</h2><p>In the Family Ledger Android app, every UPI payment you make is added here automatically. This browser version cannot read payment notifications.</p></div></div></section>`;
+    if (!Native) return `<section class="panel"><div class="phead"><div><h2>Automatic UPI</h2><p>In the Vault Tracker Android app, every UPI payment you make is added here automatically. This browser version cannot read payment notifications.</p></div></div></section>`;
     const n = ui.nat || {}, granted = !!n.permission;
     if (S.upi.enabled && granted) return `<section class="panel upion"><div class="phead"><div><h2>Automatic UPI is on</h2><p>Every payment from GPay, PhonePe, Paytm, BHIM, CRED or a bank debit SMS is added here within seconds.</p></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${n.alerts ? '' : '<button class="btn small" data-act="allowAlerts">Show an alert when a payment is added</button>'}
@@ -494,7 +499,7 @@
       ${detectionCheck(n)}
       <div><button class="linkbtn" data-act="upiPause">Turn off automatic UPI</button></div></section>`;
     return `<section class="panel upisetup"><div class="phead"><div><h2>Turn on automatic UPI</h2><p>One-time setup. After this, every UPI payment you make is added here by itself. Android asks you to allow it once.</p></div></div>
-      <ol class="steps"><li class="${S.upi.enabled ? 'done' : ''}">Tap <strong>Turn on</strong></li><li class="${granted ? 'done' : ''}">On the next screen, switch on <strong>Family Ledger</strong>, then come back</li></ol>
+      <ol class="steps"><li class="${S.upi.enabled ? 'done' : ''}">Tap <strong>Turn on</strong></li><li class="${granted ? 'done' : ''}">On the next screen, switch on <strong>Vault Tracker</strong>, then come back</li></ol>
       ${n.sdk >= 33 && S.upi.enabled && !granted ? `<p class="muted" style="margin:0;font-size:.84rem">If the switch is greyed out or says "Restricted setting": tap <strong>Open App info</strong> → ⋮ (top right) → <strong>Allow restricted settings</strong>, then try again.</p>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="upiTurnOn">${S.upi.enabled ? 'Allow access' : 'Turn on'}</button>${n.sdk >= 33 && S.upi.enabled && !granted ? '<button class="btn" data-act="openAppInfo">Open App info</button>' : ''}</div></section>`;
   }
@@ -765,7 +770,7 @@
     return header('Statement', 'month') + `
     <div class="noprint stbar"><p class="muted">Private statement for ${FULL[m]} ${y}. Save it as a PDF to keep, print or share.</p><button class="btn primary" data-act="stmtPdf">Save as PDF</button></div>
     <article class="stmt" aria-label="Statement for ${FULL[m]} ${y}">
-      <header class="sh"><div class="sbr"><i>${LOGO_MARK}</i><div><b>Family Ledger</b><span>Private family statement</span></div></div>
+      <header class="sh"><div class="sbr"><i>${LOGO_MARK}</i><div><b>Vault Tracker</b><span>Family Wealth · Private statement</span></div></div>
         <div class="sp"><span>Statement period</span><b>1 – ${days} ${FULL[m]} ${y}</b><span>Issued ${issued}</span></div></header>
       <section class="ssum">
         <div><span>Income</span><b>${fmtINR(t.income)}</b></div><div><span>Expenses</span><b>${fmtINR(t.total)}</b></div>
@@ -785,7 +790,7 @@
       ${sv.length ? `<h3>Savings</h3><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="n">Amount</th></tr></thead><tbody>
         ${sv.map(e => row([fmtDate(e.date), esc(e.name), esc(L.catName(S, e.catId)), fmtINR(e.amount)])).join('')}
         <tr class="tot"><td colspan="3">Total saved</td><td class="n">${fmtINR(t.save)}</td></tr></tbody></table>` : ''}
-      <footer class="sf"><span>Family Ledger · Private and confidential</span><span>${ex.length} transaction${ex.length === 1 ? '' : 's'} · ${FULL[m]} ${y}</span></footer>
+      <footer class="sf"><span>Vault Tracker · Private and confidential</span><span>${ex.length} transaction${ex.length === 1 ? '' : 's'} · ${FULL[m]} ${y}</span></footer>
     </article>`;
   }
 
@@ -796,7 +801,7 @@
   async function pinHash(pin, salt) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('family-ledger:' + salt + ':' + pin)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
   function lockHTML(msg) {
     const n = prefs.lock.len || 4;
-    return `<div class="lk" role="dialog" aria-modal="true" aria-label="Family Ledger is locked"><i class="lkmark">${LOGO_MARK}</i><div class="lkt">Family Ledger</div>
+    return `<div class="lk" role="dialog" aria-modal="true" aria-label="Vault Tracker is locked"><i class="lkmark">${LOGO_MARK}</i><div class="lkt">Vault Tracker</div>
       <p id="lk-msg" aria-live="assertive">${msg || 'Enter your PIN'}</p><div class="dots" id="lk-dots">${Array.from({ length: n }, () => '<i></i>').join('')}</div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(k => `<button type="button" data-lk="${k}">${k}</button>`).join('')}
         ${prefs.lock.bio && ui.bioAvail ? `<button type="button" data-lk="bio" aria-label="Use fingerprint" class="fp">${FP_ICON}</button>` : '<span></span>'}<button type="button" data-lk="0">0</button><button type="button" data-lk="del" aria-label="Delete" class="fp">⌫</button></div>
@@ -810,11 +815,11 @@
   function unlock() { const el = document.getElementById('lockscr'); if (el) { el.classList.add('out'); setTimeout(() => el.remove(), calm() ? 0 : 260); } lockTries = 0; ui.pin = ''; }
   async function tryBio() {
     if (!Native || !Native.biometricAuth) return;
-    try { const r = await Native.biometricAuth({ title: 'Unlock Family Ledger' }); if (r && r.ok) unlock(); } catch (e) {}
+    try { const r = await Native.biometricAuth({ title: 'Unlock Vault Tracker' }); if (r && r.ok) unlock(); } catch (e) {}
   }
   async function lockKey(k) {
     const msg = document.getElementById('lk-msg'), dots = document.getElementById('lk-dots'); if (!msg) return;
-    if (k === 'forgot') { msg.textContent = 'For your safety the PIN cannot be reset here. Clear Family Ledger’s storage in Android Settings → Apps, then restore your backup.'; return; }
+    if (k === 'forgot') { msg.textContent = 'For your safety the PIN cannot be reset here. Clear Vault Tracker’s storage in Android Settings → Apps, then restore your backup.'; return; }
     if (k === 'bio') return tryBio();
     if (Date.now() < lockWaitUntil) { msg.textContent = 'Too many tries. Wait ' + Math.ceil((lockWaitUntil - Date.now()) / 1000) + ' seconds.'; return; }
     const n = prefs.lock.len || 4;
@@ -835,7 +840,7 @@
     else if (lockOn() && awaySince && Date.now() - awaySince > LOCK_AWAY_MS) showLock();
   });
   function lockPanel() {
-    if (!lockOn()) return `<section class="panel" id="applock"><div class="phead"><div><h2>App lock</h2><p>Ask for a PIN${ui.bioAvail ? ' or fingerprint' : ''} when Family Ledger opens, so nobody else can see your family’s money.</p></div></div>
+    if (!lockOn()) return `<section class="panel" id="applock"><div class="phead"><div><h2>App lock</h2><p>Ask for a PIN${ui.bioAvail ? ' or fingerprint' : ''} when Vault Tracker opens, so nobody else can see your family’s money.</p></div></div>
       <div><button class="btn primary" data-act="lockSet">Set a PIN</button></div></section>`;
     return `<section class="panel" id="applock"><div class="phead"><div><h2>App lock</h2><p>On · asks for your PIN when the app opens or after 1 minute away.</p></div></div>
       ${ui.bioAvail ? `<label class="switch"><span>Unlock with fingerprint</span><input type="checkbox" id="lock-bio" ${prefs.lock.bio ? 'checked' : ''}></label>` : ''}
@@ -1154,7 +1159,7 @@
   function doImport(text) {
     const err = q ? (document.getElementById('imp-err')) : null;
     let data; try { data = JSON.parse(String(text).trim()); } catch (e) { if (err) err.textContent = 'That is not valid backup data. Copy it again from the web version or choose the backup file.'; return; }
-    if (!data || !Array.isArray(data.people)) { if (err) err.textContent = 'This data has no family members in it, so it is not a Family Income Ledger backup.'; return; }
+    if (!data || !Array.isArray(data.people)) { if (err) err.textContent = 'This data has no family members in it, so it is not a Vault Tracker backup.'; return; }
     const apply = () => {
       try { localStorage.setItem(BACKUP_KEY, JSON.stringify(S)); } catch (e) {}
       S = L.migrate(data); persist(); freshDraft(); closeSheet(); render();
@@ -1519,10 +1524,10 @@
 
     /* data */
     exportJSON() { if (download(`family-ledger-backup-${today()}.json`, JSON.stringify(S, null, 1), 'application/json')) { addLog('Backup downloaded'); persist(); } },
-    stmtPdf() { const t = 'Family Ledger statement ' + FULL[ui.month] + ' ' + ui.year; if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
+    stmtPdf() { const t = 'Vault Tracker statement ' + FULL[ui.month] + ' ' + ui.year; if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
     lockSet() {
       const change = lockOn();
-      sheet(`<h3>${change ? 'Change your PIN' : 'Set a PIN'}</h3><p>4 to 6 digits. You will need it every time you open Family Ledger.</p>
+      sheet(`<h3>${change ? 'Change your PIN' : 'Set a PIN'}</h3><p>4 to 6 digits. You will need it every time you open Vault Tracker.</p>
         ${change ? '<label class="field"><span>Current PIN</span><input id="pin-old" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>' : ''}
         <label class="field"><span>New PIN</span><input id="pin-a" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
         <label class="field"><span>Type it again</span><input id="pin-b" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
@@ -1536,11 +1541,11 @@
       if (a !== b) { err.textContent = 'The two PINs are different. Type the same PIN twice.'; return; }
       const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
       prefs.lock = { hash: await pinHash(a, salt), salt, len: a.length, bio: !!(prefs.lock && prefs.lock.bio) }; savePrefs();
-      addLog('App lock PIN set'); persist(); closeSheet(); render(); toast('PIN saved. Family Ledger will ask for it when it opens.');
+      addLog('App lock PIN set'); persist(); closeSheet(); render(); toast('PIN saved. Vault Tracker will ask for it when it opens.');
     },
     lockNow() { showLock(); },
     lockOff() {
-      sheet(`<h3>Turn off app lock?</h3><p>Anyone holding this phone could open Family Ledger.</p><label class="field"><span>Current PIN</span><input id="pin-old" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+      sheet(`<h3>Turn off app lock?</h3><p>Anyone holding this phone could open Vault Tracker.</p><label class="field"><span>Current PIN</span><input id="pin-old" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
         <div class="err" id="pin-err" role="alert"></div><div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn danger solid" data-act="lockOffOk">Turn off</button></div>`);
     },
     async lockOffOk() {
@@ -1572,7 +1577,7 @@
     cloudOffOk() { const u = prefs.cloud && prefs.cloud.url; prefs.cloud = { url: u, on: false }; savePrefs(); addLog('Turned off the online copy for Claude'); persist(); closeSheet(); render(); toast('Turned off. Nothing more will be sent.'); },
     copyJSON() { const t = JSON.stringify(S); const ok = () => toast('Backup copied. Paste it somewhere safe.'); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok).catch(() => toast('Copy was blocked. Use Download backup instead.')); else toast('Copy is not available. Use Download backup instead.'); },
     csv() { download(`family-ledger-${ui.year}.csv`, '﻿' + L.yearCSV(S, ui.year), 'text/csv'); },
-    print() { if (Native) Native.print({ title: 'Family Ledger ' + ui.year }).catch(e => toast((e && e.message) || 'Printing is not available.')); else window.print(); },
+    print() { if (Native) Native.print({ title: 'Vault Tracker ' + ui.year }).catch(e => toast((e && e.message) || 'Printing is not available.')); else window.print(); },
     importPaste() { const t = document.getElementById('importText').value; if (!t.trim()) { document.getElementById('imp-err').textContent = 'Paste the copied data first.'; return; } doImport(t); },
     importOk() { const f = ui.pendingImport; ui.pendingImport = null; f && f(); },
     undoImport() {
@@ -1586,7 +1591,7 @@
       if (!Native) return;
       if (!S.upi.enabled) { S.upi.enabled = true; S.upi.auto = true; Object.keys(L.UPI_SOURCES).forEach(k => { S.upi.sources[k] = true; }); addLog('Automatic UPI turned on'); persist(); }
       configureNative().then(() => {
-        if (ui.nat && !ui.nat.permission) { toast('Switch on Family Ledger, then come back'); A.openAccess(); }
+        if (ui.nat && !ui.nat.permission) { toast('Switch on Vault Tracker, then come back'); A.openAccess(); }
         else if (ui.nat && !ui.nat.alerts) A.allowAlerts();
         render();
       });
@@ -1632,12 +1637,12 @@
       if (!el.checked) S.upi.queue = []; // nothing unreviewed is kept once detection is off
       addLog(`UPI detection turned ${el.checked ? 'on' : 'off'}`); persist(); configureNative().then(() => {
         if (!el.checked) return;
-        if (ui.nat && !ui.nat.permission) toast('Now allow notification access for Family Ledger.');
+        if (ui.nat && !ui.nat.permission) toast('Now allow notification access for Vault Tracker.');
         else if (ui.nat && !ui.nat.alerts) A.allowAlerts();
       });
       render();
     },
-    allowAlerts() { if (!Native) return; Native.requestAlertPermission().then(r => { ui.nat = Object.assign({}, ui.nat, { alerts: !!(r && r.alerts) }); render(); if (!(r && r.alerts)) toast('Alerts are blocked. Tap Manage and turn on notifications for Family Ledger.'); }).catch(() => toast('Could not ask for alert permission.')); },
+    allowAlerts() { if (!Native) return; Native.requestAlertPermission().then(r => { ui.nat = Object.assign({}, ui.nat, { alerts: !!(r && r.alerts) }); render(); if (!(r && r.alerts)) toast('Alerts are blocked. Tap Manage and turn on notifications for Vault Tracker.'); }).catch(() => toast('Could not ask for alert permission.')); },
     openAlertSettings() { if (Native) Native.openAlertSettings().catch(() => {}); },
     openAccess() { if (Native) Native.openNotificationAccess().catch(() => toast('Open Settings → Notifications → Notification access.')); },
     openAppInfo() { if (Native) Native.openAppInfo().catch(() => {}); },
@@ -1757,7 +1762,7 @@
   /* ---------- install + offline ---------- */
   let deferredInstall = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; if (ui.view === 'home' || ui.view === 'settings') render(); });
-  window.addEventListener('appinstalled', () => { deferredInstall = null; toast('Installed. Open Family Ledger from your home screen.'); render(); });
+  window.addEventListener('appinstalled', () => { deferredInstall = null; toast('Installed. Open Vault Tracker from your home screen.'); render(); });
   if (!IS_NATIVE && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
@@ -1799,7 +1804,7 @@
   }
   /* Opening screen: the gold mark for a moment, then the ledger (or the PIN screen). */
   (function opening() {
-    const el = document.createElement('div'); el.id = 'splash'; el.innerHTML = `<i>${LOGO_MARK}</i><span>Family Ledger</span>`; document.body.appendChild(el);
+    const el = document.createElement('div'); el.id = 'splash'; el.innerHTML = `<i>${LOGO_MARK}</i><span>Vault Tracker</span><small>Family Wealth</small>`; document.body.appendChild(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, calm() ? 250 : 1000);
   })();
   if (Native && Native.biometricStatus) Native.biometricStatus().then(r => { ui.bioAvail = !!(r && r.available); if (ui.view === 'settings') render(); }).catch(() => {});

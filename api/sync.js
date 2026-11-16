@@ -1,4 +1,4 @@
-// The Family Ledger app sends its data here (POST) so Claude can read it. GET checks the connection.
+// The Vault Tracker app sends its data here (POST) so Claude can read it. GET checks the connection.
 const store = require('./_lib/store');
 const auth = require('./_lib/auth');
 

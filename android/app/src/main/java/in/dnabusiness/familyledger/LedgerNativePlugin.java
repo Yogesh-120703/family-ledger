@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Bridge between the Family Ledger web code and Android:
+ * Bridge between the Vault Tracker web code and Android:
  * UPI notification detection, saving files to Downloads, and printing reports.
  */
 @CapacitorPlugin(
@@ -260,7 +260,7 @@ public class LedgerNativePlugin extends Plugin {
             try {
                 PrintManager pm = (PrintManager) getContext().getSystemService(Context.PRINT_SERVICE);
                 WebView wv = getBridge().getWebView();
-                String job = call.getString("title", "Family Ledger report");
+                String job = call.getString("title", "Vault Tracker report");
                 pm.print(job, wv.createPrintDocumentAdapter(job), new PrintAttributes.Builder().build());
                 call.resolve();
             } catch (Exception e) {
@@ -284,7 +284,7 @@ public class LedgerNativePlugin extends Plugin {
     /** Shows Android's fingerprint prompt. Resolves {ok:true} on success; {ok:false} if cancelled or not possible (the PIN still works). */
     @PluginMethod
     public void biometricAuth(PluginCall call) {
-        final String title = call.getString("title", "Unlock Family Ledger");
+        final String title = call.getString("title", "Unlock Vault Tracker");
         getActivity().runOnUiThread(() -> {
             try {
                 FragmentActivity act = (FragmentActivity) getActivity();
