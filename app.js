@@ -277,11 +277,13 @@
       <div class="gkey"><span>${fmtINR(Math.max(0, t.income - t.total - t.save))} left</span><span class="muted">of ${fmtINR(t.income)}</span></div></div>`;
   }
   // Money jar: savings this month against the savings guide (20% of income by default).
+  // The family's savings goal: a fixed amount each month, or a share of that month's income.
+  function goalOf(income) { const g = S.saveGoal || { mode: 'pct', pct: L.targetsOf(S).save || 20 }; return g.mode === 'amount' ? { v: g.amount || 0, label: 'monthly goal' } : { v: income * (g.pct || 0) / 100, label: (g.pct || 0) + '% of income', needsIncome: true }; }
   function moneyJar(saved, income) {
-    const goal = income * (L.targetsOf(S).save || 20) / 100, f = goal > 0 ? Math.max(0, Math.min(1, saved / goal)) : (saved > 0 ? 1 : 0);
+    const G = goalOf(income), goal = G.v, f = goal > 0 ? Math.max(0, Math.min(1, saved / goal)) : (saved > 0 ? 1 : 0);
     const top = 30, bot = 150, h = (bot - top) * f, id = 'jar' + Math.random().toString(36).slice(2, 7);
     const body = 'M38 30h44v8c10 4 16 12 16 24v76a14 14 0 0 1-14 14H36a14 14 0 0 1-14-14V62c0-12 6-20 16-24z';
-    return `<div class="jar"><svg viewBox="0 0 120 160" role="img" aria-label="Savings jar ${Math.round(f * 100)}% full">
+    return `<div class="jar"><svg viewBox="0 0 120 160" data-act="setGoal" style="cursor:pointer" role="img" aria-label="Savings jar ${Math.round(f * 100)}% full">
       <defs><clipPath id="${id}"><path d="${body}"/></clipPath></defs>
       <path d="${body}" fill="var(--sunk)"/>
       <rect x="0" y="${bot + 2 - h}" width="120" height="${h + 2}" fill="var(--accent)" opacity=".9" clip-path="url(#${id})"/>
@@ -289,7 +291,9 @@
       <path d="${body}" fill="none" stroke="var(--accent-line)" stroke-width="2"/>
       <rect x="34" y="18" width="52" height="12" rx="3" fill="var(--raised)" stroke="var(--accent-line)" stroke-width="1.5"/>
       <text x="60" y="104" text-anchor="middle" font-size="18" font-weight="600" fill="${f > .45 ? 'var(--accent-ink)' : 'var(--ink)'}">${Math.round(f * 100)}%</text></svg>
-      <div class="jt"><span class="label">Savings jar</span><b>${fmtINR(saved)}</b><span class="muted">${goal > 0 ? 'of ' + fmtINR(goal) + ' goal (' + (L.targetsOf(S).save || 20) + '% of income)' : 'Add income to set a goal'}</span>${f >= 1 ? '<span class="pos">Goal reached</span>' : ''}</div></div>`;
+      <div class="jt"><span class="label">Savings jar</span><b>${fmtINR(saved)}</b><span class="muted">${goal > 0 ? 'of ' + fmtINR(goal) + ' · ' + G.label : G.needsIncome ? 'Add income, or set a fixed goal' : 'Set a goal to fill the jar'}</span>
+        ${f >= 1 ? '<span class="pos">Goal reached</span>' : goal > 0 ? `<span class="muted">${fmtINR(Math.max(0, goal - saved))} to go</span>` : ''}
+        <button class="btn small" data-act="setGoal" style="justify-self:start;margin-top:6px">Set goal</button></div></div>`;
   }
   // Picture blocks: one tile per category, sized by how much was spent (squarified treemap).
   function treemap(cats, total) {
@@ -339,88 +343,99 @@
       <p class="muted vnote">Each coin = <b>${fmtINR(unit)}</b></p>`;
   }
 
+  /* ---------- panels shared by Home, Analytics and Reports ---------- */
+  function cmpOf(y, m) { return L.compareMonths(S, y, m, today()); }
+  function deltaOf(cmp, pair, upIsGood) { if (!cmp || !pair || pair.diff === 0) return ''; const up = pair.diff > 0, good = up === upIsGood;
+    return `<span class="delta ${good ? 'pos' : 'neg'}">${up ? '▲' : '▼'} ${fmtINR(Math.abs(pair.diff))}</span>`; }
+  const vsLabelOf = cmp => cmp ? (cmp.partial ? `vs 1–${cmp.cutDay} ${MONTHS[cmp.pm]}` : `vs ${MONTHS[cmp.pm]}`) : '';
+  function chartPanel(y, m) {
+    return `<section class="panel" aria-label="Income and expenses"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div></div>${incomeVsExpenseChart(y, m)}
+      <div class="ckey"><span><i class="ln" style="background:var(--good)"></i>Income</span><span><i class="ln" style="background:var(--bad)"></i>Expenses</span></div></section>`;
+  }
+  function calPanel(y, m) {
+    return L.inMonth(S.expenses, y, m).length ? `<section class="panel" aria-label="Spending calendar"><div class="phead"><div><h2>Spending calendar</h2><p>Darker days mean more spent</p></div></div>${spendCalendar(y, m)}</section>` : '';
+  }
+  function famPanel(y, m) {
+    const rec = S.records[mk(y, m)] || {};
+    const fam = active().map(p => ({ p, inc: rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0,
+      spent: L.sum(L.inMonth(S.expenses, y, m).filter(e => e.paidBy === p.id)), saved: L.sum(L.inMonth(S.savings, y, m).filter(e => e.by === p.id)) }));
+    const fmax = Math.max(1, ...fam.map(x => Math.max(x.inc, x.spent, x.saved)));
+    const fbar = (v, c) => `<span class="fb"><i style="width:${v ? Math.max(3, v / fmax * 100) : 0}%;background:${c}"></i></span>`;
+    const initials = n => String(n).trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    return `<section class="panel" aria-label="Family members"><div class="phead"><div><h2>Family members</h2><p>Income, paid and saved by each person</p></div></div>
+      <div class="fam">${fam.map(x => `<div class="fammem"><div class="pt"><span class="av" aria-hidden="true">${esc(initials(x.p.name))}</span><strong>${esc(x.p.name)}</strong></div>
+        <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
+  }
+  function famYear(y) {
+    const people = active(); if (!people.length) return '';
+    const inc = p => Object.entries(S.records).filter(([k]) => k.slice(0, 4) === String(y)).reduce((a, [, rec]) => a + (rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0), 0);
+    const rows = people.map(p => ({ p, inc: inc(p), spent: L.sum(L.inYear(S.expenses, y).filter(e => e.paidBy === p.id)), saved: L.sum(L.inYear(S.savings, y).filter(e => e.by === p.id)) }));
+    const fmax = Math.max(1, ...rows.map(x => Math.max(x.inc, x.spent, x.saved))), fbar = (v, c) => `<span class="fb"><i style="width:${v ? Math.max(3, v / fmax * 100) : 0}%;background:${c}"></i></span>`;
+    return `<section class="panel"><div class="phead"><div><h2>Family members</h2><p>Full year ${y}</p></div></div><div class="fam">${rows.map(x => `<div class="fammem"><div class="pt"><strong>${esc(x.p.name)}</strong></div>
+      <dl><div><dt>Income</dt><dd class="pos">${fmtINR(x.inc)}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="neg">${fmtINR(x.spent)}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="color:var(--accent)">${fmtINR(x.saved)}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
+  }
+  function cmpPanel(y, m) {
+    const cmp = cmpOf(y, m), t = L.totals(S, y, m);
+    return cmp && cmp.cats.length && t.nExp ? `<section class="panel"><div class="phead"><div><h2>Compared with ${cmp.partial ? '1–' + cmp.cutDay + ' ' : ''}${FULL[cmp.pm]}</h2><p>Biggest changes in spending</p></div></div>
+      <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div></section>` : '';
+  }
+  function limPanel(y, m) {
+    const st = L.limitStatus(S, y, m), attention = st.filter(x => x.level !== 'ok').length;
+    return st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 6)}</section>` : '';
+  }
+
+  /* ---------- HOME: five calm blocks, alerts only when something needs you ---------- */
   function vHome() {
     const y = ui.year, m = ui.month, t = L.totals(S, y, m), r = L.monthReport(S, y, m);
-    const base = Math.max(t.income, t.total + t.save) || 1;
     const recent = L.inMonth(S.expenses, y, m).map(e => [e, 'exp']).concat(L.inMonth(S.savings, y, m).map(e => [e, 'save']))
-      .sort((a, b) => b[0].date.localeCompare(a[0].date) || (b[0].created || 0) - (a[0].created || 0)).slice(0, 6);
-    const st = L.limitStatus(S, y, m), attention = st.filter(x => x.level !== 'ok').length;
-    const rb = L.runningBalance(S, y, m), cmp = L.compareMonths(S, y, m, today());
+      .sort((a, b) => b[0].date.localeCompare(a[0].date) || (b[0].created || 0) - (a[0].created || 0)).slice(0, 5);
+    const rb = L.runningBalance(S, y, m), cmp = cmpOf(y, m), vsLabel = vsLabelOf(cmp);
     const isNowMonth = today().slice(0, 7) === mk(y, m), due = isNowMonth ? L.dueList(S, today(), 7) : [];
-    const delta = (pair, upIsGood) => { if (!cmp || !pair || pair.diff === 0) return ''; const up = pair.diff > 0, good = up === upIsGood;
-      return `<span class="delta ${good ? 'pos' : 'neg'}">${up ? '▲' : '▼'} ${fmtINR(Math.abs(pair.diff))}</span>`; };
-    const vsLabel = cmp ? (cmp.partial ? `vs 1–${cmp.cutDay} ${MONTHS[cmp.pm]}` : `vs ${MONTHS[cmp.pm]}`) : '';
+    const delta = (pair, good) => deltaOf(cmp, pair, good);
     const isEmpty = !S.expenses.length && !S.savings.length && !Object.keys(S.records).length;
     const kpi = (cls, label, v, has, sub) => `<div class="card ${cls}"><span class="label">${label}</span>${has ? `<span class="v">${richINR(v)}</span>` : `<span class="v nil">Not recorded</span>`}<span class="s">${sub}</span></div>`;
     const total = rb.started ? rb.total : t.bal;
 
-    // family members this month: income, what they paid, what they saved
-    const rec = S.records[mk(y, m)] || {};
-    const fam = active().map(p => {
-      const inc = rec[p.id] && !rec[p.id].none ? L.amt(rec[p.id]) : 0;
-      const spent = L.sum(L.inMonth(S.expenses, y, m).filter(e => e.paidBy === p.id));
-      const saved = L.sum(L.inMonth(S.savings, y, m).filter(e => e.by === p.id));
-      return { p, inc, spent, saved };
-    });
-    const fmax = Math.max(1, ...fam.map(x => Math.max(x.inc, x.spent, x.saved)));
-    const fbar = (v, c) => `<span class="fb"><i style="width:${v ? Math.max(3, v / fmax * 100) : 0}%;background:${c}"></i></span>`;
-    const initials = n => String(n).trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const famPanel = `<section class="panel" aria-label="Family members"><div class="phead"><div><h2>Family members</h2><p>${FULL[m]} ${y} · income, paid and saved by each person</p></div><button class="linkbtn" data-act="go" data-v="income">Income</button></div>
-      <div class="fam">${fam.map(x => `<div class="fammem"><div class="pt"><span class="av" aria-hidden="true">${esc(initials(x.p.name))}</span><strong>${esc(x.p.name)}</strong></div>
-        <dl><div><dt>Income</dt><dd class="${x.inc ? 'pos' : 'muted'}">${x.inc ? fmtINR(x.inc) : '—'}</dd>${fbar(x.inc, 'var(--good)')}</div><div><dt>Paid</dt><dd class="${x.spent ? 'neg' : 'muted'}">${x.spent ? fmtINR(x.spent) : '—'}</dd>${fbar(x.spent, 'var(--bad)')}</div><div><dt>Saved</dt><dd style="${x.saved ? 'color:var(--accent)' : ''}" class="${x.saved ? '' : 'muted'}">${x.saved ? fmtINR(x.saved) : '—'}</dd>${fbar(x.saved, 'var(--accent)')}</div></dl></div>`).join('')}</div></section>`;
-
-    const cats = r.cats.slice(0, 6), cmax = cats.length ? cats[0].v : 1, colOf = k => k === 'life' ? 'var(--life)' : k === 'uns' ? 'var(--uns)' : 'var(--need)';
-    const catPanel = `<section class="panel" aria-label="Category breakdown"><div class="phead"><div><h2>Where the money went</h2><p>${cats.length ? 'Top categories · ' + FULL[m] : 'No expenses this month yet'}</p></div>${cats.length ? '<button class="linkbtn" data-act="go" data-v="analytics">Analytics</button>' : ''}</div>
-      ${cats.length ? treemap(r.cats, r.expenses) + `<ul class="cbreak">${cats.map(c => `<li><i class="cicon ${c.type}" aria-hidden="true">${catSvg(c.catId, c.type)}</i><span class="nm"><strong>${esc(c.type === 'uns' ? 'Needs a category' : c.name)}</strong><span class="bar"><i style="width:${Math.max(3, c.v / cmax * 100)}%;background:${colOf(c.type)}"></i></span></span>
-        <span class="amt">${fmtINR(c.v)}<small>${r.expenses ? Math.round(c.v / r.expenses * 100) + '%' : ''}</small></span></li>`).join('')}</ul>` : `<div class="empty"><b>Nothing spent yet</b>Expenses you add appear here by category.</div>`}</section>`;
-
-    const ovPanel = t.empty ? '' : `<section class="panel" aria-label="Monthly overview"><div class="phead"><div><h2>Monthly overview</h2><p>${r.hasIncome ? `Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income` : 'Add income to see how much you kept'}${cmp && !cmp.partial && cmp.total.diff ? ` · spending ${cmp.total.diff > 0 ? 'up' : 'down'} ${fmtINR(Math.abs(cmp.total.diff))} ${vsLabel}` : ''}</p></div><button class="linkbtn" data-act="openMonthReport">Full report</button></div>
+    const ovPanel = t.empty ? '' : `<section class="panel" aria-label="This month"><div class="phead"><div><h2>This month</h2>${r.hasIncome ? `<p>Kept <strong class="${r.left >= 0 ? 'pos' : 'neg'}">${pctTxt(r.leftPct)}</strong> of income</p>` : ''}</div><button class="linkbtn" data-act="openMonthReport">Report</button></div>
       <div class="ovpics">${gauge(t)}<div class="ov">
         <div class="ovrow"><span><i class="sw" style="background:var(--need)"></i>Necessary</span><span>${delta(cmp && cmp.need, false)} <b>${fmtINR(t.need)}</b></span></div>
         <div class="ovrow"><span><i class="sw" style="background:var(--life)"></i>Lifestyle</span><span>${delta(cmp && cmp.life, false)} <b>${fmtINR(t.life)}</b></span></div>
         ${t.uns ? `<div class="ovrow"><span><i class="sw" style="background:var(--uns)"></i>Needs a category</span><b>${fmtINR(t.uns)}</b></div>` : ''}
         <div class="ovrow"><span><i class="sw" style="background:var(--save)"></i>Savings</span><span>${delta(cmp && cmp.save, true)} <b>${fmtINR(t.save)}</b></span></div>
-        <div class="ovrow" style="border-top:1px solid var(--line);padding-top:10px"><span>Available this month</span><b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></div>
-      </div></div>
-      <div class="meter" aria-hidden="true"><i style="width:${t.need / base * 100}%;background:var(--need)"></i><i style="width:${t.life / base * 100}%;background:var(--life)"></i><i style="width:${t.uns / base * 100}%;background:var(--uns)"></i><i style="width:${t.save / base * 100}%;background:var(--save)"></i></div></section>`;
+        <div class="ovrow total"><span>Available</span><b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></div>
+      </div></div></section>`;
 
-    const calPanel = t.nExp ? `<section class="panel" aria-label="Spending calendar"><div class="phead"><div><h2>Spending calendar</h2><p>${FULL[m]} · darker days mean more spent</p></div></div>${spendCalendar(y, m)}</section>` : '';
-    const jarPanel = t.income || t.save ? `<section class="panel" aria-label="Savings jar">${moneyJar(t.save, t.income)}</section>` : '';
-    const chartPanel = `<section class="panel" aria-label="Income and expenses"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div></div>${incomeVsExpenseChart(y, m)}
-      <div class="ckey"><span><i class="ln" style="background:var(--good)"></i>Income</span><span><i class="ln" style="background:var(--bad)"></i>Expenses</span></div></section>`;
+    const catPanel = r.cats.length ? `<section class="panel" aria-label="Where the money went"><div class="phead"><div><h2>Where the money went</h2></div><button class="linkbtn" data-act="go" data-v="analytics">Analytics</button></div>
+      ${treemap(r.cats, r.expenses)}</section>` : '';
 
-    const recentPanel = `<section class="panel"><div class="phead"><div><h2>Recent transactions</h2><p>${FULL[m]} ${y}</p></div><button class="linkbtn" data-act="go" data-v="expenses">All expenses</button></div>
+    const recentPanel = `<section class="panel"><div class="phead"><div><h2>Recent</h2></div><button class="linkbtn" data-act="go" data-v="expenses">All</button></div>
       ${recent.length ? recent.map(([e, k]) => txRow(e, k)).join('') : `<div class="empty"><b>Nothing recorded in ${FULL[m]}</b>Tap + Expense when you spend money.</div>`}</section>`;
 
-    const duePanel = due.length ? `<section class="panel" aria-label="Bills and repeating payments"><div class="phead"><div><h2>Bills and repeating payments</h2><p>${due.filter(d => d.days <= 0).length ? due.filter(d => d.days <= 0).length + ' due now · ' : ''}next 7 days</p></div><button class="linkbtn" data-act="goRecurring">Manage</button></div>
-      ${due.slice(0, 6).map(d => `<div class="duerow"><button class="dt" data-act="dueOpen" data-id="${d.r.id}" data-k="${d.key}"><strong>${esc(d.r.name)}</strong><span class="${d.days < 0 ? 't-over' : d.days === 0 ? 't-reached' : 'muted'}">${d.days < 0 ? -d.days + ' day' + (d.days === -1 ? '' : 's') + ' late' : d.days === 0 ? 'Due today' : d.days === 1 ? 'Due tomorrow' : 'Due in ' + d.days + ' days'} · ${fmtDate(d.date)}</span></button>
+    const duePanel = due.length ? `<section class="panel" aria-label="Bills and repeating payments"><div class="phead"><div><h2>Bills due</h2><p>${due.filter(d => d.days <= 0).length ? due.filter(d => d.days <= 0).length + ' due now · ' : ''}next 7 days</p></div><button class="linkbtn" data-act="goRecurring">Manage</button></div>
+      ${due.slice(0, 3).map(d => `<div class="duerow"><button class="dt" data-act="dueOpen" data-id="${d.r.id}" data-k="${d.key}"><strong>${esc(d.r.name)}</strong><span class="${d.days < 0 ? 't-over' : d.days === 0 ? 't-reached' : 'muted'}">${d.days < 0 ? -d.days + ' day' + (d.days === -1 ? '' : 's') + ' late' : d.days === 0 ? 'Due today' : d.days === 1 ? 'Due tomorrow' : 'Due in ' + d.days + ' days'} · ${fmtDate(d.date)}</span></button>
         <span class="num">${d.r.amount == null ? '<span class="muted" style="font-size:.84rem">Amount varies</span>' : fmtINR(d.r.amount)}</span>
         <span class="acts"><button class="btn small ghost" data-act="dueSkip" data-id="${d.r.id}" data-k="${d.key}">Skip</button><button class="btn small primary" data-act="dueAdd" data-id="${d.r.id}" data-k="${d.key}">${d.r.amount == null ? 'Enter' : 'Add'}</button></span></div>`).join('')}
-      ${due.length > 6 ? `<button class="linkbtn" data-act="goRecurring">${due.length - 6} more</button>` : ''}</section>` : '';
-
-    const cmpPanel = cmp && cmp.cats.length && t.nExp ? `<section class="panel"><div class="phead"><div><h2>Compared with ${cmp.partial ? '1–' + cmp.cutDay + ' ' : ''}${FULL[cmp.pm]}</h2><p>Biggest changes in spending${cmp.partial ? ' for the same days' : ''}</p></div></div>
-      <div class="cmp">${cmp.cats.slice(0, 4).map(c => `<div class="cmprow"><span class="tag ${c.type}">${KINDS[c.type]}</span><strong>${esc(c.name)}</strong><span class="num muted">${fmtINR(c.before)} → ${fmtINR(c.now)}</span><span class="num ${c.diff > 0 ? 'neg' : 'pos'}">${c.diff > 0 ? '▲' : '▼'} ${fmtINR(Math.abs(c.diff))}</span></div>`).join('')}</div></section>` : '';
-    const limPanel = st.length ? `<section class="panel"><div class="phead"><div><h2>Spending limits</h2><p>${attention ? attention + ' need attention' : 'All within limits'}</p></div><button class="linkbtn" data-act="goLimits">Manage</button></div>${limitsBlock(y, m, 3)}</section>` : '';
+      ${due.length > 3 ? `<button class="linkbtn" data-act="goRecurring">${due.length - 3} more</button>` : ''}</section>` : '';
 
     return header('Home', 'month') + `
     ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Vault Tracker on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
-    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend. You can also bring data from a backup.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
+    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="go" data-v="settings">Import data</button></span></div>` : ''}
     ${needsCatPanel()}
     <section class="balance" aria-label="Total family balance">
       <span class="label">Total family balance</span>
       ${t.empty && !rb.started ? `<span class="v" style="color:var(--faint);font-size:1.5rem">No records yet</span><span class="sub">Add income, expenses or savings for ${FULL[m]}.</span>`
         : `<span class="v ${total < 0 ? 'neg' : ''}" data-count="${total}">${richINR(total)}</span>
-      <span class="sub">${rb.started ? `<span>This month <b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></span><span>Earlier months <b class="${rb.carried < 0 ? 'neg' : ''}">${fmtINR(rb.carried)}</b></span>` : `<span>${FULL[m]} ${y}</span><span>Income − expenses − savings</span>`}</span>`}
+      <span class="sub">${rb.started ? `<span>This month <b class="${t.bal < 0 ? 'neg' : ''}">${fmtINR(t.bal)}</b></span><span>Earlier <b class="${rb.carried < 0 ? 'neg' : ''}">${fmtINR(rb.carried)}</b></span>` : `<span>${FULL[m]} ${y}</span>`}</span>`}
     </section>
     <section class="kpis" aria-label="This month">
-      ${kpi('inc', 'Monthly income', t.income, t.hasIncome, t.hasIncome ? (cmp && !cmp.partial ? delta(cmp.income, true) + ' <span class="muted">' + vsLabel + '</span>' : active().length + ' members') : `<button class="linkbtn" data-act="go" data-v="income">Add income</button>`)}
-      ${kpi('exp', 'Monthly expenses', t.total, t.nExp > 0, t.nExp ? (cmp && !t.uns ? delta(cmp.total, false) + ' <span class="muted">' + vsLabel + '</span>' : t.nExp + ' record' + (t.nExp === 1 ? '' : 's')) : 'No expenses yet')}
-      ${kpi('sav', 'Savings', t.save, t.nSave > 0, t.nSave ? t.nSave + ' entr' + (t.nSave === 1 ? 'y' : 'ies') : 'Nothing saved yet')}
+      ${kpi('inc', 'Income', t.income, t.hasIncome, t.hasIncome ? (cmp && !cmp.partial ? delta(cmp.income, true) + ' <span class="muted">' + vsLabel + '</span>' : '&nbsp;') : `<button class="linkbtn" data-act="go" data-v="income">Add income</button>`)}
+      ${kpi('exp', 'Expenses', t.total, t.nExp > 0, t.nExp ? (cmp && !t.uns ? delta(cmp.total, false) + ' <span class="muted">' + vsLabel + '</span>' : '&nbsp;') : '&nbsp;')}
+      ${kpi('sav', 'Savings', t.save, t.nSave > 0, t.nSave ? `<button class="linkbtn" data-act="go" data-v="savings">Savings jar</button>` : '&nbsp;')}
     </section>
     ${duePanel}
     <div class="homegrid">
-      <div class="col">${ovPanel}${chartPanel}${catPanel}${calPanel}${cmpPanel}</div>
-      <div class="col">${jarPanel}${recentPanel}${famPanel}${limPanel}${homeReport(y, m)}</div>
+      <div class="col">${ovPanel}${catPanel}</div>
+      <div class="col">${recentPanel}</div>
     </div>`;
   }
 
@@ -631,6 +646,7 @@
     const cats = L.byCat(S, ex), tot = L.sum(ex), anyYear = L.inYear(S.expenses, y).length > 0, anySaveYear = L.inYear(S.savings, y).length > 0;
     return header('Analytics', 'month') + `
     <div class="seg" role="group" aria-label="Period"><button class="${!yr ? 'on' : ''}" data-act="aMode" data-v="month">${FULL[m]}</button><button class="${yr ? 'on' : ''}" data-act="aMode" data-v="year">Full year ${y}</button></div>
+    ${chartPanel(y, m)}
     ${cats.length ? `<section class="panel" aria-label="Spending in gold coins"><div class="phead"><div><h2>Spending in gold coins</h2><p>${period} · top categories</p></div></div>${pictogram(cats)}</section>` : ''}
     <section class="panel"><div class="phead"><div><h2>Necessary expenses</h2><p>${period}</p></div></div>
       ${pie(cats.filter(c => c.type === 'need').map(c => ({ label: c.name, v: c.v })), 'No necessary expenses in this period.', 'Necessary expenses by category')}</section>
@@ -645,7 +661,8 @@
     <section class="panel"><div class="phead"><div><h2>Savings by category</h2><p>${period}</p></div></div>
       ${pie(L.byCat(S, sv).map(c => ({ label: c.name, v: c.v })), 'No savings recorded in this period.', 'Savings by category')}</section>
     <section class="panel"><div class="phead"><div><h2>Monthly savings ${y}</h2><p>Actual savings recorded each month</p></div></div>
-      ${anySaveYear ? `<div class="chartbox">${savingsBars(y)}</div>` : `<div class="empty"><b>No savings in ${y}</b>Record savings on the Savings screen.</div>`}</section>`;
+      ${anySaveYear ? `<div class="chartbox">${savingsBars(y)}</div>` : `<div class="empty"><b>No savings in ${y}</b>Record savings on the Savings screen.</div>`}</section>
+    ${!yr ? calPanel(y, m) + cmpPanel(y, m) + famPanel(y, m) + limPanel(y, m) : famYear(y)}`;
   }
 
   /* ---------- REPORTS ---------- */
@@ -698,6 +715,7 @@
       ${tile('Left after expenses', fmtINR(r.left), r.hasIncome ? pctTxt(r.leftPct) + ' of income' : 'Add income to see %', r.left > 0 ? 'pos' : r.left < 0 ? 'neg' : '')}
       ${tile('Recorded savings', fmtINR(r.saved), 'RD, FD and other savings')}
     </section>
+    <section class="panel homerep"><div class="phead"><div><h2>${FULL[m]} at a glance</h2><p>Your month in one picture</p></div></div><div class="mpicwrap"><canvas class="mpic" data-y="${y}" data-m="${m}" width="1080" height="1350" role="img" aria-label="${FULL[m]} at a glance"></canvas></div></section>
     <section class="panel"><div class="phead"><div><h2>Compared with ${FULL[r.pm]}</h2><p>${r.prev.empty ? 'Nothing recorded in ' + FULL[r.pm] + ' to compare with.' : 'Change from last month'}</p></div></div>
       ${r.prev.empty ? '' : `<table class="legend cmptab">
         <tr><td>Income</td><td class="n">${fmtINR(r.prev.income)} → ${fmtINR(r.income)}</td><td class="n">${chg(r.change.income, true)}</td></tr>
@@ -705,7 +723,7 @@
         <tr><td>Left after expenses</td><td class="n">${fmtINR(r.prev.left)} → ${fmtINR(r.left)}</td><td class="n">${chg(r.change.left, true)}</td></tr></table>`}</section>
     <section class="panel"><div class="phead"><div><h2>Where the money went</h2><p>${r.top ? 'Highest: <strong style="color:var(--ink)">' + esc(r.top.name) + '</strong> · ' + fmtINR(r.top.v) + ' (' + pctTxt(r.topPct) + ' of expenses)' : 'No expenses this month'}</p></div></div>
       ${r.cats.length ? `<table class="legend">${r.cats.map(c => `<tr><td><span class="nm"><span class="tag ${c.type}">${KINDS[c.type]}</span> ${esc(c.name)}</span><div class="track" style="margin-top:4px"><i style="width:${c.v / r.cats[0].v * 100}%;background:var(--${c.type})"></i></div></td><td class="n">${fmtINR(c.v)}</td><td class="p">${Math.round(c.v / r.expenses * 100)}%</td></tr>`).join('')}</table>` : ''}</section>
-    <section class="panel"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div>${key([['Income', 'var(--good)'], ['Expenses', 'var(--life)']])}</div>${incomeVsExpenseChart(y, m)}</section>
+    <section class="panel"><div class="phead"><div><h2>Income vs expenses</h2><p>Last 6 months</p></div>${key([['Income', 'var(--good)'], ['Expenses', 'var(--bad)']])}</div>${incomeVsExpenseChart(y, m)}</section>
     <section class="panel"><div class="phead"><div><h2>50/30/20 guide</h2><p>A common guide: about ${tg.needs}% on needs, ${tg.wants}% on wants, ${tg.save}% kept. Every family is different, so treat it only as a reference.</p></div><button class="btn small" data-act="editTargets">Edit</button></div>
       ${r.hasIncome ? splitBar('Necessary (needs)', r.split.needs, tg.needs, 'var(--need)') + splitBar('Lifestyle (wants)', r.split.wants, tg.wants, 'var(--life)') + splitBar('Kept (not spent)', r.split.save, tg.save, 'var(--good)') : '<div class="empty">Add income for this month to compare with the guide.</div>'}</section>
     <section class="panel"><div class="phead"><div><h2>Suggestions</h2><p>Based on your ${FULL[m]} records</p></div></div>${tipsBlock(tips)}</section>`;
@@ -1524,6 +1542,25 @@
 
     /* data */
     exportJSON() { if (download(`family-ledger-backup-${today()}.json`, JSON.stringify(S, null, 1), 'application/json')) { addLog('Backup downloaded'); persist(); } },
+    setGoal() {
+      const g = S.saveGoal || { mode: 'pct', pct: L.targetsOf(S).save || 20 }, t = L.totals(S, ui.year, ui.month);
+      ui.goalMode = g.mode;
+      sheet(`<h3>Savings goal</h3><p>How much should the family save each month? The jar fills as you add savings.</p>
+        <div class="seg" role="group" aria-label="Goal type"><button type="button" class="${g.mode === 'amount' ? 'on' : ''}" data-act="goalMode" data-v="amount">Fixed amount</button><button type="button" class="${g.mode !== 'amount' ? 'on' : ''}" data-act="goalMode" data-v="pct">% of income</button></div>
+        <label class="field" id="goal-amt-f" ${g.mode === 'amount' ? '' : 'hidden'}><span>Amount each month</span><div class="money"><b>₹</b><input id="goal-amt" inputmode="decimal" autocomplete="off" value="${g.amount || ''}" placeholder="25,000"></div></label>
+        <label class="field" id="goal-pct-f" ${g.mode === 'amount' ? 'hidden' : ''}><span>Percent of the month's income</span><div class="money"><input id="goal-pct" inputmode="decimal" autocomplete="off" value="${g.pct || 20}" style="padding-left:12px"><b>%</b></div>
+          <small class="muted">${t.income ? 'This month that is about ' + fmtINR(t.income * (g.pct || 20) / 100) + '.' : 'Works once this month\'s income is entered.'}</small></label>
+        <div class="err" id="goal-err" role="alert"></div>
+        <div class="mfoot"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="saveGoal">Save goal</button></div>`);
+    },
+    goalMode(el) { ui.goalMode = el.dataset.v; layer.querySelectorAll('[data-act="goalMode"]').forEach(b => b.classList.toggle('on', b === el)); q('#goal-amt-f').hidden = ui.goalMode !== 'amount'; q('#goal-pct-f').hidden = ui.goalMode === 'amount'; },
+    saveGoal() {
+      const err = q('#goal-err');
+      if (ui.goalMode === 'amount') { const v = L.parseMoney(q('#goal-amt').value); if (!(v > 0)) { err.textContent = 'Type the amount to save each month, like 25000.'; return; } S.saveGoal = { mode: 'amount', amount: v }; }
+      else { const v = parseFloat(String(q('#goal-pct').value).replace(/[^0-9.]/g, '')); if (!(v > 0 && v <= 100)) { err.textContent = 'Type a percent between 1 and 100.'; return; } S.saveGoal = { mode: 'pct', pct: Math.round(v * 10) / 10 }; }
+      addLog('Savings goal set: ' + (S.saveGoal.mode === 'amount' ? fmtINR(S.saveGoal.amount) + ' a month' : S.saveGoal.pct + '% of income'));
+      persist(); closeSheet(); render(); toast('Savings goal saved.');
+    },
     stmtPdf() { const t = 'Vault Tracker statement ' + FULL[ui.month] + ' ' + ui.year; if (Native) Native.print({ title: t }).catch(e => toast((e && e.message) || 'Saving as PDF is not available.')); else window.print(); },
     lockSet() {
       const change = lockOn();
