@@ -39,7 +39,7 @@
   }
   /* ---------- online copy for Claude (off until the person connects their own website) ---------- */
   var cloudTimer = null;
-  const APP_VERSION = '1.10';
+  const APP_VERSION = '2.0';
   function scheduleCloud() { try { if (!prefs.cloud || !prefs.cloud.on) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudSend(false), 5000); } catch (e) { /* settings not loaded yet */ } }
   // What goes online: the ledger only. Payment-reading internals and the activity log stay on the phone.
   function cloudSnapshot() { const d = JSON.parse(JSON.stringify(S)); d.upi = { payeeCat: (S.upi && S.upi.payeeCat) || {} }; delete d.log; delete d.limitLog; return d; }
@@ -63,8 +63,7 @@
   let prefs = {}; try { prefs = JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (e) {}
   const savePrefs = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} };
   function addLog(msg) { S.log.unshift({ t: Date.now(), msg }); if (S.log.length > 500) S.log.length = 500; }
-  // Sample data is no longer offered. If it was loaded earlier, clear it once; the family's own entries stay.
-  try { if (S.sampleLoaded) { L.removeSample(S); addLog('Removed the old sample data'); persist(); } } catch (e) {}
+
 
   /* ---------- ui state ---------- */
   const VIEWS = [['home', 'Home'], ['income', 'Income'], ['expenses', 'Expenses'], ['savings', 'Savings'], ['analytics', 'Analytics'], ['reports', 'Reports']];
@@ -414,7 +413,8 @@
 
     return header('Home', 'month') + `
     ${deferredInstall && !prefs.hideInstall ? `<div class="notice"><span>Install Vault Tracker on this phone for one-tap access, even offline.</span><span style="display:flex;gap:6px"><button class="btn ghost small" data-act="hideInstall">Not now</button><button class="btn primary small" data-act="install">Install app</button></span></div>` : ''}
-    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, then add expenses as you spend.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button></span></div>` : ''}
+    ${isEmpty ? `<div class="notice"><span>Welcome. Start with this month's family income, or load sample data to see how every screen works.</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" data-act="go" data-v="income">Add income</button><button class="btn small" data-act="loadSample">Load sample data</button></span></div>` : ''}
+    ${S.sampleLoaded ? `<div class="notice"><span><strong>Sample data is showing.</strong> Remove it before entering real figures. Your own entries are kept.</span><button class="btn small" data-act="removeSample">Remove sample data</button></div>` : ''}
     ${needsCatPanel()}
     <section class="balance" aria-label="Total family balance">
       <span class="label">Total family balance</span>
@@ -930,6 +930,8 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="exportJSON">Download backup</button><button class="btn" data-act="copyJSON">Copy backup</button><button class="btn" data-act="csv">Export ${y} CSV</button></div>
       ${deferredInstall ? '<button class="btn" data-act="install">Install app on this phone</button>' : ''}
     </section>
+    <section class="panel"><div class="phead"><div><h2>Sample data</h2><p>${S.sampleLoaded ? 'Example entries from January to today are loaded. Removing them keeps everything you entered yourself.' : 'Fill the app with a realistic family year to show every screen. It can be removed in one tap.'}</p></div>
+      ${S.sampleLoaded ? '<button class="btn danger" data-act="removeSample">Remove sample data</button>' : '<button class="btn" data-act="loadSample">Load sample data</button>'}</div></section>
     <section class="panel"><div class="phead"><div><h2>Activity log</h2><p>Every change, newest first</p></div></div>
       <ul class="hist">${(ui.showAllLog ? S.log : S.log.slice(0, 10)).map(l => `<li><time>${fmtTime(l.t)}</time><span>${esc(l.msg)}</span></li>`).join('')}</ul>
       ${S.log.length > 10 ? `<button class="btn ghost" data-act="showLog">${ui.showAllLog ? 'Show less' : 'Show all ' + S.log.length}</button>` : ''}</section>`;
