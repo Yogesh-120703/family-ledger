@@ -123,8 +123,8 @@ final class UpiAlerter {
         }
     }
 
-    static final int GOLD = 0xFFA65316;
-    static final int CARAMEL = 0xFFA65316;
+    static final int GOLD = 0xFF1E8A6A;
+    static final int CARAMEL = 0xFF1E8A6A;
 
     private static String sourceName(String pkg) {
         if (pkg == null) return "Bank SMS";
@@ -138,26 +138,26 @@ final class UpiAlerter {
         }
     }
 
-    /** Draws the payment picture in warm cream and caramel: ₹ badge, who was paid, the amount, time and source. */
+    /** Draws the payment picture in light mint and gold: ₹ badge, who was paid, the amount, time and source. */
     static Bitmap drawCard(String amount, String payee, String source, long at, boolean added) {
         int W = 1080, H = 520;
         Bitmap bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         Typeface bold = Typeface.create(Typeface.DEFAULT, Typeface.BOLD), reg = Typeface.DEFAULT;
-        p.setColor(0xFFFCEBD5); c.drawRoundRect(new RectF(0, 0, W, H), 40, 40, p);
-        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setColor(0xFFE8C69F); c.drawRoundRect(new RectF(1.5f, 1.5f, W - 1.5f, H - 1.5f), 39, 39, p);
-        p.setStyle(Paint.Style.FILL); p.setColor(0xFFFFF5E8); c.drawRoundRect(new RectF(70, 70, 240, 240), 40, 40, p);
-        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(5); p.setColor(0xFFD18A32); c.drawCircle(155, 155, 62, p);
+        p.setColor(0xFFE4F5EE); c.drawRoundRect(new RectF(0, 0, W, H), 40, 40, p);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setColor(0xFFC6E6D8); c.drawRoundRect(new RectF(1.5f, 1.5f, W - 1.5f, H - 1.5f), 39, 39, p);
+        p.setStyle(Paint.Style.FILL); p.setColor(0xFFF2FBF7); c.drawRoundRect(new RectF(70, 70, 240, 240), 40, 40, p);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(5); p.setColor(0xFFD4AF6E); c.drawCircle(155, 155, 62, p);
         p.setStyle(Paint.Style.FILL); p.setColor(CARAMEL); p.setTypeface(bold); p.setTextSize(84); p.setTextAlign(Paint.Align.CENTER); c.drawText("₹", 155, 184, p);
         p.setTextAlign(Paint.Align.LEFT);
-        p.setColor(0xFF8B654B); p.setTypeface(reg); p.setTextSize(36); c.drawText("Paid to", 280, 112, p);
+        p.setColor(0xFF557A6C); p.setTypeface(reg); p.setTextSize(36); c.drawText("Paid to", 280, 112, p);
         String who = payee == null || payee.isEmpty() ? "UPI payment" : payee;
         if (who.length() > 22) who = who.substring(0, 21) + "…";
-        p.setColor(0xFF5A2D18); p.setTypeface(bold); p.setTextSize(56); c.drawText(who, 280, 180, p);
-        p.setColor(0xFFD18A32); p.setTypeface(reg); p.setTextSize(38); c.drawText("Vault Tracker", 280, 238, p);
-        p.setColor(0xFF5A2D18); p.setTypeface(bold); p.setTextSize(104); c.drawText(amount, 70, 400, p);
-        p.setColor(0xFF8B654B); p.setTypeface(reg); p.setTextSize(32);
+        p.setColor(0xFF16372C); p.setTypeface(bold); p.setTextSize(56); c.drawText(who, 280, 180, p);
+        p.setColor(0xFFD4AF6E); p.setTypeface(reg); p.setTextSize(38); c.drawText("Vault Tracker", 280, 238, p);
+        p.setColor(0xFF16372C); p.setTypeface(bold); p.setTextSize(104); c.drawText(amount, 70, 400, p);
+        p.setColor(0xFF557A6C); p.setTypeface(reg); p.setTextSize(32);
         c.drawText(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date(at)) + " · " + source, 70, 460, p);
         p.setColor(CARAMEL); c.drawRoundRect(new RectF(W - 330, 360, W - 70, 430), 18, 18, p);
         p.setColor(0xFFFFFFFF); p.setTypeface(bold); p.setTextSize(32); p.setTextAlign(Paint.Align.CENTER);

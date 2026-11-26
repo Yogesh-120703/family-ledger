@@ -16,7 +16,7 @@
   // Statement-style amount: small ₹, whole rupees, small paise.
   const richINR = n => { const a = Math.abs(n), w = Math.floor(a), p = Math.round((a - w) * 100);
     return `<span class="rich">${n < 0 ? '<span class="sg">−</span>' : ''}<span class="cur">₹</span>${w.toLocaleString('en-IN')}<span class="ps">.${String(p).padStart(2, '0')}</span></span>`; };
-  const LOGO_MARK = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#FFF5E8" stroke="#E8C69F" stroke-width="6"/><circle cx="256" cy="256" r="178" fill="none" stroke="#D18A32" stroke-width="9"/><circle cx="256" cy="256" r="160" fill="none" stroke="#E8B45B" stroke-opacity=".6" stroke-width="2"/><path fill="#A65316" d="M336.54 195.5H303.75C302.01 185.36 298.53 176.33 293.14 168.57L328.15 168.73L336.54 138H184.49L175.46 173.48H219.02C241.35 173.48 254.34 181.87 259.72 195.5H183.85L175.46 225.91H260.83C255.92 241.9 241.67 251.41 219.02 251.41H178.79L179.1 276.91L259.88 374H307.4V371.94L234.54 282.45L235.96 282.13C277.94 277.07 298.69 256.32 303.6 225.91H328.15Z"/></svg>';
+  const LOGO_MARK = '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1D1F24"/><circle cx="256" cy="256" r="178" fill="none" stroke="#D4AF6E" stroke-width="8"/><circle cx="256" cy="256" r="160" fill="none" stroke="#D4AF6E" stroke-opacity=".28" stroke-width="2"/><path fill="#D4AF6E" d="M336.54 195.5H303.75C302.01 185.36 298.53 176.33 293.14 168.57L328.15 168.73L336.54 138H184.49L175.46 173.48H219.02C241.35 173.48 254.34 181.87 259.72 195.5H183.85L175.46 225.91H260.83C255.92 241.9 241.67 251.41 219.02 251.41H178.79L179.1 276.91L259.88 374H307.4V371.94L234.54 282.45L235.96 282.13C277.94 277.07 298.69 256.32 303.6 225.91H328.15Z"/></svg>';
   const plain = n => (n < 0 ? '−' : '') + Math.abs(Math.round(n)).toLocaleString('en-IN');
   const short = n => { const a = Math.abs(n), s = n < 0 ? '−' : ''; return a >= 1e7 ? s + '₹' + (a / 1e7).toFixed(1).replace(/\.0$/, '') + 'Cr' : a >= 1e5 ? s + '₹' + (a / 1e5).toFixed(1).replace(/\.0$/, '') + 'L' : a >= 1e3 ? s + '₹' + (a / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : s + '₹' + Math.round(a); };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -40,7 +40,7 @@
   }
   /* ---------- online copy for Claude (off until the person connects their own website) ---------- */
   var cloudTimer = null;
-  const APP_VERSION = '2.2';
+  const APP_VERSION = '2.3';
   function scheduleCloud() { try { if (!prefs.cloud || !prefs.cloud.on) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudSend(false), 5000); } catch (e) { /* settings not loaded yet */ } }
   // What goes online: the ledger only. Payment-reading internals and the activity log stay on the phone.
   function cloudSnapshot() { const d = JSON.parse(JSON.stringify(S)); d.upi = { payeeCat: (S.upi && S.upi.payeeCat) || {} }; delete d.log; delete d.limitLog; return d; }
@@ -135,24 +135,24 @@
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
   function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
   const inr = v => '₹' + Math.round(Math.abs(v)).toLocaleString('en-IN');
-  const GG = { bg: '#FFF5E8', card: '#FCEBD5', raised: '#F8E2C4', sunk: '#FFF5E8', line: '#E8C69F', ink: '#5A2D18', muted: '#8B654B', faint: '#8B654B', gold: '#D18A32', gold3: '#E8B45B', caramel: '#A65316', good: '#4D8A24', bad: '#E97862', need: '#A65316', life: '#E8B45B', uns: '#8B654B' };
+  const GG = { bg: '#F2FBF7', card: '#E4F5EE', raised: '#D8EFE5', sunk: '#F2FBF7', line: '#C6E6D8', ink: '#16372C', muted: '#557A6C', faint: '#557A6C', gold: '#D4AF6E', gold3: '#E5D0A5', caramel: '#1E8A6A', good: '#2E8B57', bad: '#E5735E', need: '#1E8A6A', life: '#D4AF6E', uns: '#557A6C' };
   const FONT = (w, s) => `${w} ${s}px Inter, system-ui, sans-serif`;
   // Gold medallion picture for canvas images (month picture, payment card).
   function drawIcon(g, key, x, y, size, ring) {
     const cx = x + size / 2, cy = y + size / 2, R = size * .85;
-    const grd = g.createRadialGradient(cx - R * .4, cy - R * .5, 1, cx, cy, R * 1.1); grd.addColorStop(0, '#FFF5E8'); grd.addColorStop(1, '#FCEBD5');
+    const grd = g.createRadialGradient(cx - R * .4, cy - R * .5, 1, cx, cy, R * 1.1); grd.addColorStop(0, '#F2FBF7'); grd.addColorStop(1, '#E4F5EE');
     g.fillStyle = grd; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = ring || '#D18A32'; g.lineWidth = size * .045; g.beginPath(); g.arc(cx, cy, R - g.lineWidth / 2, 0, Math.PI * 2); g.stroke();
-    g.strokeStyle = 'rgba(209,138,50,.3)'; g.lineWidth = size * .02; g.beginPath(); g.arc(cx, cy, R * .86, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = ring || '#1E8A6A'; g.lineWidth = size * .045; g.beginPath(); g.arc(cx, cy, R - g.lineWidth / 2, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(60,198,160,.35)'; g.lineWidth = size * .02; g.beginPath(); g.arc(cx, cy, R * .86, 0, Math.PI * 2); g.stroke();
     g.save(); g.translate(x + size * .2, y + size * .2); g.scale(size * .6 / 24, size * .6 / 24);
-    try { const p = new Path2D(CAT_SVG[key] || CAT_SVG.pin); g.fillStyle = 'rgba(232,180,91,.35)'; g.fill(p); g.strokeStyle = '#A65316'; g.lineWidth = 1.7; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(p); } catch (e) {}
+    try { const p = new Path2D(CAT_SVG[key] || CAT_SVG.pin); g.fillStyle = 'rgba(60,198,160,.3)'; g.fill(p); g.strokeStyle = '#1E8A6A'; g.lineWidth = 1.7; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(p); } catch (e) {}
     g.restore();
   }
   function drawMonthCard(cv, r) {
     const g = cv.getContext('2d'), W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
     g.fillStyle = GG.bg; rr(g, 0, 0, W, H, 48); g.fill();
-    g.strokeStyle = '#E8C69F'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 47); g.stroke();
+    g.strokeStyle = '#C6E6D8'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 47); g.stroke();
     g.fillStyle = GG.gold; g.fillRect(70, 70, 64, 4);
     g.fillStyle = GG.gold; g.font = FONT(600, 30); g.fillText('VAULT TRACKER', 70, 125);
     g.fillStyle = GG.ink; g.font = FONT(600, 80); g.fillText(FULL[r.m] + ' ' + r.y, 70, 215);
@@ -184,7 +184,7 @@
     const g = cv.getContext('2d'), W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
     g.fillStyle = GG.card; rr(g, 0, 0, W, H, 40); g.fill();
-    g.strokeStyle = '#E8C69F'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 39); g.stroke();
+    g.strokeStyle = '#C6E6D8'; g.lineWidth = 3; rr(g, 1.5, 1.5, W - 3, H - 3, 39); g.stroke();
     const col = p.type === 'life' ? GG.life : p.type === 'uns' ? GG.uns : p.type === 'save' ? GG.good : GG.need;
     drawIcon(g, p.iconKey || 'pin', 95, 95, 120, col);
     g.fillStyle = GG.muted; g.font = FONT(400, 36); g.fillText('Paid to', 280, 112);
@@ -288,8 +288,8 @@
     return `<div class="jar"><svg viewBox="0 0 120 160" data-act="setGoal" style="cursor:pointer" role="img" aria-label="Savings jar ${Math.round(f * 100)}% full">
       <defs><clipPath id="${id}"><path d="${body}"/></clipPath></defs>
       <path d="${body}" fill="var(--sunk)"/>
-      <rect x="0" y="${bot + 2 - h}" width="120" height="${h + 2}" fill="var(--accent-3)" opacity=".95" clip-path="url(#${id})"/>
-      ${f > .02 ? `<path d="M22 ${bot + 2 - h}h76" stroke="var(--accent-2)" stroke-width="1.5" clip-path="url(#${id})"/>` : ''}
+      <rect x="0" y="${bot + 2 - h}" width="120" height="${h + 2}" fill="var(--accent-2)" opacity=".9" clip-path="url(#${id})"/>
+      ${f > .02 ? `<path d="M22 ${bot + 2 - h}h76" stroke="#E5D0A5" stroke-width="1.5" clip-path="url(#${id})"/>` : ''}
       <path d="${body}" fill="none" stroke="var(--accent-line)" stroke-width="2"/>
       <rect x="34" y="18" width="52" height="12" rx="3" fill="var(--raised)" stroke="var(--accent-line)" stroke-width="1.5"/>
       <text x="60" y="104" text-anchor="middle" font-size="18" font-weight="600" fill="${f > .45 ? 'var(--accent-ink)' : 'var(--ink)'}">${Math.round(f * 100)}%</text></svg>
@@ -592,7 +592,7 @@
     const total = items.reduce((a, x) => a + x.v, 0);
     if (!total) return `<div class="empty"><b>No data</b>${emptyMsg}</div>`;
     let parts = items.slice().sort((a, b) => b.v - a.v).map((x, i) => ({ ...x, color: COLORS[i % COLORS.length] }));
-    if (parts.length > 7) { const rest = parts.slice(6); parts = parts.slice(0, 6); parts.push({ label: 'Others (' + rest.length + ')', v: rest.reduce((a, x) => a + x.v, 0), color: '#C9A88A' }); }
+    if (parts.length > 7) { const rest = parts.slice(6); parts = parts.slice(0, 6); parts.push({ label: 'Others (' + rest.length + ')', v: rest.reduce((a, x) => a + x.v, 0), color: '#A9C9BC' }); }
     const R = 70, C = 2 * Math.PI * R; let off = 0;
     const segs = parts.map(x => { const len = x.v / total * C; const s = `<circle r="${R}" cx="100" cy="100" fill="none" stroke="${x.color}" stroke-width="28" stroke-dasharray="${Math.max(len - (parts.length > 1 ? 2 : 0), 0.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"><title>${esc(x.label)}: ${fmtINR(x.v)} (${pct(x.v, total)}%)</title></circle>`; off += len; return s; }).join('');
     return `<div class="donutwrap"><svg class="donut" viewBox="0 0 200 200" role="img" aria-label="${esc(label)}"><circle r="${R}" cx="100" cy="100" fill="none" stroke="var(--sunk)" stroke-width="28"/>${segs}

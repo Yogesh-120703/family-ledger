@@ -28,7 +28,7 @@ import java.util.Locale;
 final class Reminders {
     static final String CHANNEL_ID = "reminders";
     private static final String PREFS = "vt_reminders";
-    private static final int GOLD = 0xFFA65316;
+    private static final int GOLD = 0xFF1E8A6A;
 
     private Reminders() {}
 
