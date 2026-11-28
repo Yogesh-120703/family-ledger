@@ -1,4 +1,4 @@
-# Builds the Family Ledger Android app (APK) on GitHub's servers.
+# Builds the Vault Tracker Android app (APK) on GitHub's servers.
 # The APK is attached to a GitHub Release, so it downloads on a phone without signing in.
 name: Build Android APK
 
@@ -65,28 +65,31 @@ jobs:
           fi
 
       - name: Name the APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk family-ledger.apk
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk vault-tracker.apk
+          cp vault-tracker.apk family-ledger.apk   # old link keeps working
 
       - name: Check the APK with Android's own tools
         run: |
           BT="$ANDROID_HOME/build-tools/35.0.0"
-          "$BT/apksigner" verify --verbose --print-certs family-ledger.apk > verify.txt 2>&1 && echo "::notice::apksigner: $(grep -E 'Verifies|v1 scheme|v2 scheme|v3 scheme' verify.txt | tr '\n' ' ')" || { echo "::error::apksigner failed: $(head -5 verify.txt | tr '\n' ' ')"; exit 1; }
-          "$BT/aapt2" dump badging family-ledger.apk > badging.txt
+          "$BT/apksigner" verify --verbose --print-certs vault-tracker.apk > verify.txt 2>&1 && echo "::notice::apksigner: $(grep -E 'Verifies|v1 scheme|v2 scheme|v3 scheme' verify.txt | tr '\n' ' ')" || { echo "::error::apksigner failed: $(head -5 verify.txt | tr '\n' ' ')"; exit 1; }
+          "$BT/aapt2" dump badging vault-tracker.apk > badging.txt
           echo "::notice::badging: $(grep -E "^package:|sdkVersion|targetSdkVersion|native-code|testOnly" badging.txt | tr '\n' ' ')"
 
       - name: Upload APK (build artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: family-ledger-apk
-          path: family-ledger.apk
+          name: vault-tracker-apk
+          path: vault-tracker.apk
 
       - name: Publish APK download page
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="build-${{ github.run_number }}"
-          gh release create "$TAG" family-ledger.apk \
+          VER=$(sed -n 's/.*versionName "\(.*\)".*/\1/p' android/app/build.gradle)
+          gh release create "$TAG" vault-tracker.apk family-ledger.apk \
             --repo "${{ github.repository }}" \
-            --title "Family Ledger (build ${{ github.run_number }})" \
-            --notes "Install on Android: download family-ledger.apk, open it, allow installing from this source. Test build (debug), not for the Play Store." \
+            --title "Vault Tracker $VER (build ${{ github.run_number }})" \
+            --notes "Install on Android: download vault-tracker.apk, open it, allow installing from this source. Test build (debug), not for the Play Store." \
             --latest
